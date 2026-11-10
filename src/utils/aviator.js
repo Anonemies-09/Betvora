@@ -41,7 +41,7 @@ export function multiplierAt(elapsedMs, rate = 0.14) {
 
 /** Normalised x/y (0-100) for the flight path graph. */
 export function flightPoint(mult, elapsedMs) {
-  const x = 8 + Math.min(84, (elapsedMs / 1000) * 2.5)
+  const x = 14 + Math.min(78, (elapsedMs / 1000) * 2.5)
   const y = 86 - Math.min(70, Math.log(Math.max(1, mult)) * 20)
   return { x, y }
 }

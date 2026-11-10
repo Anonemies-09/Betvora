@@ -28,7 +28,7 @@ const NEXT_ROUND_DELAY = 4000
 const MIN_STAKE = 10
 const MAX_STAKE = 100000
 const PRESETS = [50, 100, 200, 500]
-const START_POINT = { x: 8, y: 86 }
+const START_POINT = { x: 14, y: 86 }
 
 function crashTone(value) {
   if (value >= 10) return 'bg-gold text-navy-800'
@@ -40,6 +40,9 @@ function FlightCanvas({ phase, mult, crashAt, trail }) {
   const last = trail[trail.length - 1] || START_POINT
   const prev = trail[trail.length - 2] || START_POINT
   const angle = (Math.atan2(last.y - prev.y, last.x - prev.x) * 180) / Math.PI
+  // Keep the airliner's pitch natural: aircraft climb at a gentler angle than
+  // the graph line, so damp the path angle and clamp it.
+  const pitch = Math.max(-30, Math.min(10, angle * 0.5))
   const points = trail.map((p) => `${p.x},${p.y}`).join(' ')
   const crashed = phase === 'crashed'
   const waiting = phase === 'waiting'
@@ -112,12 +115,12 @@ function FlightCanvas({ phase, mult, crashAt, trail }) {
           style={{
             left: `${last.x}%`,
             top: `${last.y}%`,
-            transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+            transform: `translate(-50%, -50%) rotate(${pitch}deg)`,
           }}
         >
           <AviatorPlane
             className={cn(
-              'h-12 w-12 drop-shadow-[0_8px_14px_rgba(0,0,0,0.55)] transition-opacity sm:h-14 sm:w-14',
+              'h-10 w-20 drop-shadow-[0_8px_14px_rgba(0,0,0,0.55)] transition-opacity sm:h-12 sm:w-24',
               crashed && 'opacity-50 saturate-50',
             )}
           />
