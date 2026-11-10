@@ -8,24 +8,26 @@ import {
   Megaphone,
   Sparkles,
   LogOut,
+  Home,
 } from 'lucide-react'
 import Logo from '../components/common/Logo'
 import { useAuth } from '../context/AuthContext'
 import { cn } from '../utils/cn'
 
 const ADMIN_LINKS = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/admin/users', label: 'Users', icon: Users },
-  { to: '/admin/sports', label: 'Sports & Matches', icon: Trophy },
-  { to: '/admin/bets', label: 'Bets', icon: ReceiptText },
-  { to: '/admin/wallet', label: 'Wallet & Transactions', icon: Wallet },
-  { to: '/admin/promotions', label: 'Promotions', icon: Megaphone },
-  { to: '/admin/banners', label: 'Banners', icon: Sparkles },
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true, staff: true },
+  { to: '/admin/users', label: 'Users', icon: Users, adminOnly: true },
+  { to: '/admin/sports', label: 'Sports & Matches', icon: Trophy, staff: true },
+  { to: '/admin/bets', label: 'Bets', icon: ReceiptText, staff: true },
+  { to: '/admin/wallet', label: 'Wallet & Transactions', icon: Wallet, staff: true },
+  { to: '/admin/promotions', label: 'Promotions', icon: Megaphone, adminOnly: true },
+  { to: '/admin/banners', label: 'Banners', icon: Sparkles, adminOnly: true },
 ]
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const visibleLinks = ADMIN_LINKS.filter((l) => !l.adminOnly || user?.role === 'admin')
 
   const handleLogout = () => {
     logout()
@@ -39,7 +41,16 @@ export default function AdminLayout() {
           <Logo size={30} />
         </Link>
         <nav className="flex-1 space-y-1">
-          {ADMIN_LINKS.map((link) => (
+          <Link
+            to="/home"
+            className="mb-3 flex items-center gap-3 rounded-xl border border-white/10 bg-navy-800/60 px-3 py-2.5 text-sm font-semibold text-white/70 transition-colors hover:border-gold/40 hover:text-gold"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-navy-800">
+              <Home className="h-3.5 w-3.5" />
+            </span>
+            Main Site
+          </Link>
+          {visibleLinks.map((link) => (
             <NavLink key={link.to} to={link.to} end={link.end}>
               {({ isActive }) => (
                 <span

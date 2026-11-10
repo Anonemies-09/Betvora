@@ -2,7 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import Spinner from './Spinner'
 
-export default function ProtectedRoute({ children, adminOnly = false }) {
+export default function ProtectedRoute({ children, adminOnly = false, staffOnly = false }) {
   const { user, loading } = useAuth()
   const location = useLocation()
 
@@ -18,7 +18,11 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
-  if (adminOnly && user.role !== 'admin' && user.role !== 'agent') {
+  if (adminOnly && user.role !== 'admin') {
+    return <Navigate to="/" replace />
+  }
+
+  if (staffOnly && user.role !== 'admin' && user.role !== 'agent') {
     return <Navigate to="/" replace />
   }
 

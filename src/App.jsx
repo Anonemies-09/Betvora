@@ -132,18 +132,18 @@ function App() {
 
         <Route
           element={
-            <ProtectedRoute adminOnly>
+            <ProtectedRoute staffOnly>
               <AdminLayout />
             </ProtectedRoute>
           }
         >
           <Route path="/admin" element={<AdminDashboardPage />} />
-          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/users" element={<ProtectedRoute adminOnly><AdminUsersPage /></ProtectedRoute>} />
           <Route path="/admin/sports" element={<AdminSportsPage />} />
           <Route path="/admin/bets" element={<AdminBetsPage />} />
           <Route path="/admin/wallet" element={<AdminWalletPage />} />
-          <Route path="/admin/promotions" element={<AdminPromotionsPage />} />
-          <Route path="/admin/banners" element={<AdminBannersPage />} />
+          <Route path="/admin/promotions" element={<ProtectedRoute adminOnly><AdminPromotionsPage /></ProtectedRoute>} />
+          <Route path="/admin/banners" element={<ProtectedRoute adminOnly><AdminBannersPage /></ProtectedRoute>} />
           <Route path="/admin/*" element={<AdminRedirect />} />
         </Route>
 
