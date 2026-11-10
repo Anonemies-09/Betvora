@@ -130,7 +130,7 @@ export default function PublicHomePage() {
         <div className="mx-auto grid max-w-6xl gap-10 px-4 pb-14 pt-14 sm:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-14">
           <div>
             <span className="inline-flex items-center gap-2 border border-gold/40 bg-gold/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-gold">
-              Welcome offer · 100% bonus in demo cash
+              Welcome offer - 100% bonus on first deposit
             </span>
             <h1 className="mt-6 text-5xl font-black leading-[0.98] tracking-tight sm:text-6xl">
               Know the game?
@@ -138,8 +138,7 @@ export default function PublicHomePage() {
               <span className="text-gold">Prove it.</span>
             </h1>
             <p className="mt-6 max-w-md text-base leading-relaxed text-white/60 sm:text-lg">
-              Real odds on the world&apos;s biggest leagues — played with demo money. No
-              deposit, no documents, no risk. Just your read on the game.
+              Real odds on the world's biggest leagues. Deposit, play and win real money. 18+. Play responsibly.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button size="lg" onClick={() => navigate('/onboarding')}>
@@ -150,7 +149,7 @@ export default function PublicHomePage() {
               </Button>
             </div>
             <p className="mt-6 text-xs font-medium text-white/35">
-              Demo account only · Free balance that refills · No real money, ever
+              Real money betting. Deposit via Telecel Cash.
             </p>
           </div>
 
@@ -351,7 +350,7 @@ export default function PublicHomePage() {
                 {
                   n: '01',
                   t: 'Open a free account',
-                  d: 'Email and a password. That’s it — the demo balance appears the moment you sign up.',
+                  d: "Email and a password. That's it - your account is ready the moment you sign up.",
                 },
                 {
                   n: '02',
@@ -376,16 +375,7 @@ export default function PublicHomePage() {
           </div>
         </section>
 
-        {/* Proof */}
-        <section className="mx-auto max-w-3xl text-center">
-          <div className="text-4xl text-white/20">“</div>
-          <p className="text-2xl font-bold leading-snug tracking-tight text-white/90 sm:text-3xl">
-            Thought it would be gimmicky. Then I hit a five-match acca on a Thursday night
-            and my demo balance tripled.
-          </p>
-          <p className="mt-6 text-sm font-black uppercase tracking-wider text-gold">Adaeze · Lagos</p>
-          <p className="mt-1 text-xs text-white/35">Demo bettor, 214-day streak</p>
-        </section>
+        
 
         {/* CTA */}
         <section className="grid overflow-hidden rounded-lg border border-white/10 bg-royal sm:grid-cols-[1.2fr_0.8fr]">
@@ -394,13 +384,12 @@ export default function PublicHomePage() {
               Your first bet is on us.
             </h2>
             <p className="mt-4 max-w-md text-sm leading-relaxed text-white/55">
-              Join in under a minute, get a 100% match bonus in demo cash — paid out in your
-              local currency — and go straight at tonight&apos;s fixtures.
+              Join in under a minute, get a 100% match bonus on your first deposit, and go straight at tonight's fixtures.
             </p>
             <Button size="lg" className="mt-8" onClick={() => navigate('/onboarding')}>
               Start betting free <ArrowRight className="h-4 w-4" />
             </Button>
-            <p className="mt-4 text-xs text-white/30">18+. Demo money only. Please play responsibly.</p>
+            <p className="mt-4 text-xs text-white/30">18+. Real money. Please play responsibly.</p>
           </div>
           <div className="flex items-center justify-center border-t border-white/10 bg-royal/40 p-8 sm:border-l sm:border-t-0">
             <div className="text-center">
@@ -427,7 +416,7 @@ export default function PublicHomePage() {
             </nav>
           </div>
           <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-6 text-center text-xs text-white/30 sm:flex-row sm:text-left">
-            <p>BETVORA is a demo — all games use simulated money. 18+. Play responsibly.</p>
+            <p>BETVORA is live. Real money betting. 18+. Play responsibly.</p>
             <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
               <Link to="/terms" className="transition-colors hover:text-white">Terms</Link>
               <Link to="/privacy" className="transition-colors hover:text-white">Privacy</Link>
