@@ -1,7 +1,6 @@
 // Promotions (admin-controlled), backed by localStorage.
 // Phase 15: admin CRUD here feeds the user-facing pages.
 
-import { PROMOTIONS } from '../data/demoData'
 import { COLLECTIONS, mirrorPersist, mirrorDelete } from './firestoreService'
 
 const PROMOTIONS_KEY = 'betvora_promotions'
@@ -15,18 +14,10 @@ function readPromotions() {
     const raw = localStorage.getItem(PROMOTIONS_KEY)
     if (raw) return JSON.parse(raw)
   } catch {
-    /* fall through to seed */
+    /* fall through */
   }
-  const seed = PROMOTIONS.map((p) => ({
-    ...p,
-    percentage: 100,
-    maxBonus: 100000,
-    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    status: 'active',
-  }))
-  localStorage.setItem(PROMOTIONS_KEY, JSON.stringify(seed))
-  return seed
+  localStorage.setItem(PROMOTIONS_KEY, JSON.stringify([]))
+  return []
 }
 
 function persist(promotions) {

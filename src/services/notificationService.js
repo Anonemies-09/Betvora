@@ -5,13 +5,7 @@ import { COLLECTIONS, mirrorPersist } from './firestoreService'
 
 const NOTIFICATIONS_KEY = 'betvora_notifications'
 
-const SEED = [
-  { id: 'n1001', type: 'bet', title: 'Bet placed', text: 'Your bet #BV10291 has been placed successfully.', read: false, createdAt: new Date(Date.now() - 2 * 60 * 1000).toISOString() },
-  { id: 'n1002', type: 'win', title: 'Bet won', text: 'Congratulations! Bet #BV10288 has won.', read: false, createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString() },
-  { id: 'n1003', type: 'wallet', title: 'Wallet credited', text: 'Your wallet has been credited with ₵1,250.00.', read: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'n1004', type: 'system', title: 'Verification successful', text: 'Your account has been verified.', read: true, createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'n1005', type: 'promo', title: 'New promotion available', text: 'Welcome bonus: 100% up to ₦100,000.', read: true, createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString() },
-]
+const SEED = []
 
 function delay(ms = 250) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -39,6 +33,44 @@ export async function getNotifications() {
   return readNotifications().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 }
 
+function browserNotificationsEnabled() {
+  try {
+    const raw = localStorage.getItem('betvora_settings')
+    const settings = raw ? JSON.parse(raw) : {}
+    return settings.browserNotifications !== false
+  } catch {
+    return true
+  }
+}
+
+export async function requestNotificationPermission() {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
+  if (Notification.permission === 'granted') return 'granted'
+  try {
+    return await Notification.requestPermission()
+  } catch {
+    return 'denied'
+  }
+}
+
+export function showBrowserNotification(title, body) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission !== 'granted') return
+  if (!browserNotificationsEnabled()) return
+  try {
+    // `silent: false` lets the browser/OS play the device's default
+    // notification sound. No custom sound is specified on purpose.
+    new Notification(title, {
+      body,
+      icon: '/favicon.png',
+      badge: '/favicon.png',
+      silent: false,
+    })
+  } catch {
+    /* ignore - notifications may be blocked by the browser */
+  }
+}
+
 export async function createNotification({ type = 'system', title, text }) {
   const notifications = readNotifications()
   notifications.unshift({
@@ -52,6 +84,7 @@ export async function createNotification({ type = 'system', title, text }) {
   persist(notifications)
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('betvora:notify'))
+    showBrowserNotification(title, text)
   }
   return notifications
 }

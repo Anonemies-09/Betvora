@@ -96,7 +96,7 @@ function VirtualRaceCard({ sport }) {
           </>
         )}
       </Button>
-      <p className="mt-2 text-center text-[10px] text-white/25">Demo payout pool: {formatCurrency(250000, currency)}</p>
+      <p className="mt-2 text-center text-[10px] text-white/25">Payout pool: {formatCurrency(250000, currency)}</p>
     </Card>
   )
 }
@@ -115,7 +115,7 @@ export default function VirtualSportsPage() {
           </h1>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/50">
             Simulated sport running faster than real time. Watch odds refresh, settle your pick,
-            and stack winners all day long — on the same demo wallet.
+            and stack winners all day long.
           </p>
         </div>
       </section>

@@ -2,7 +2,6 @@
 // Admin edits here; the betting engine settles against it.
 // Phase 12/13 moves this to Firestore (collections: sports/leagues/teams/matches/markets).
 
-import { MATCHES } from '../data/demoData'
 import { COLLECTIONS, mirrorPersist, mirrorDelete } from './firestoreService'
 import { notifyCatalogueUpdated } from '../hooks/useCatalogue'
 
@@ -17,10 +16,10 @@ export function readMatches() {
     const raw = localStorage.getItem(MATCHES_KEY)
     if (raw) return JSON.parse(raw)
   } catch {
-    /* fall through to seed */
+    /* fall through */
   }
-  localStorage.setItem(MATCHES_KEY, JSON.stringify(MATCHES))
-  return [...MATCHES]
+  localStorage.setItem(MATCHES_KEY, JSON.stringify([]))
+  return []
 }
 
 function persist(matches) {

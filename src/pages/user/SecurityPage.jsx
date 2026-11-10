@@ -40,8 +40,8 @@ export default function SecurityPage() {
       <Card className="flex items-center gap-3 p-5">
         <ShieldCheck className="h-5 w-5 shrink-0 text-success" />
         <p className="text-sm text-white/50">
-          Two-factor authentication and login alerts arrive with Firebase Auth. Password changes
-          below work right now in demo mode.
+          Two-factor authentication and login alerts are powered by Firebase Auth. Password changes
+          below work right now.
         </p>
       </Card>
 

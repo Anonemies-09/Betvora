@@ -98,7 +98,7 @@ export default function Sidebar() {
             <span className="text-sm font-black uppercase">Hot Tip</span>
           </div>
           <p className="mt-1.5 text-xs text-white/50">
-            BetVora is a demo product. No real money is involved.
+            BetVora is live. Play responsibly.
           </p>
         </div>
       </div>

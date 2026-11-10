@@ -70,20 +70,6 @@ function writeWallets(wallets) {
 }
 
 function defaultWallet(userId) {
-  if (userId === 'u001') {
-    return {
-      id: userId,
-      balance: 125430,
-      bonus: 25000,
-      currency: 'GHS',
-      transactions: [
-        { id: 'tx1004', type: 'win', amount: 18400, note: 'Winnings — Bet #BV10289', createdAt: iso(0, 6) },
-        { id: 'tx1003', type: 'bet', amount: -5000, note: 'Bet placed — #BV10290', createdAt: iso(0, 3) },
-        { id: 'tx1002', type: 'deposit', amount: 50000, note: 'Deposit via Mobile Money', createdAt: iso(1) },
-        { id: 'tx1001', type: 'bonus', amount: 25000, note: '100% Welcome Bonus', createdAt: iso(1, 2) },
-      ],
-    }
-  }
   return {
     id: userId,
     balance: 0,
@@ -155,7 +141,7 @@ export async function deposit(amount, options = {}) {
   pushTransaction(wallet, {
     type: 'deposit',
     amount: value,
-    note: method ? `Deposit via ${method}${account ? ` - ${account}` : ''}` : 'Demo Deposit',
+    note: method ? `Deposit via ${method}${account ? ` - ${account}` : ''}` : 'Deposit',
     method,
   })
   writeWallet(uid, wallet)
@@ -175,14 +161,14 @@ export async function withdraw(amount, options = {}) {
   if (!value || value <= 0) throw new Error('Enter a valid amount.')
   const uid = options.userId || getCurrentUserId()
   const wallet = readWallet(uid)
-  if (value > wallet.balance) throw new Error('Insufficient demo balance.')
+  if (value > wallet.balance) throw new Error('Insufficient balance.')
   wallet.balance -= value
   const method = options.method
   const account = options.account
   pushTransaction(wallet, {
     type: 'withdraw',
     amount: -value,
-    note: method ? `Withdrawal to ${method}${account ? ` - ${account}` : ''}` : 'Demo Withdrawal',
+    note: method ? `Withdrawal to ${method}${account ? ` - ${account}` : ''}` : 'Withdrawal',
     method,
   })
   writeWallet(uid, wallet)
@@ -224,7 +210,7 @@ export async function deductForBet(amount, note, userId) {
   const value = Number(amount)
   const uid = userId || getCurrentUserId()
   const wallet = readWallet(uid)
-  if (value > wallet.balance) throw new Error('Insufficient demo balance.')
+  if (value > wallet.balance) throw new Error('Insufficient balance.')
   wallet.balance -= value
   pushTransaction(wallet, { type: 'bet', amount: -value, note })
   writeWallet(uid, wallet)

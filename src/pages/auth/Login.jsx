@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, Info } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import Input from '../../components/common/Input'
 import Button from '../../components/common/Button'
 import { useAuth } from '../../context/AuthContext'
-import { DEMO_PASSWORD } from '../../services/authService'
 
 export default function Login() {
   const { login } = useAuth()
@@ -38,14 +37,6 @@ export default function Login() {
     <div>
       <h1 className="text-2xl font-black text-white">Welcome back</h1>
       <p className="mt-1 text-sm text-white/50">Log in to keep betting with BETVORA.</p>
-
-      <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-gold/20 bg-gold/5 p-3 text-xs text-white/60">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-        <span>
-          Demo login: <b className="text-white">demo@betvora.app</b> /{' '}
-          <b className="text-white">{DEMO_PASSWORD}</b>
-        </span>
-      </div>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <Input

@@ -2,7 +2,7 @@
 // Pending bets are evaluated when an admin settles a match; wins are
 // credited and losses marked. Refunded (voided) bets return the stake.
 
-import { demoBets } from '../data/demoData'
+// no demo data in live mode
 import { readMatches } from './matchService'
 import * as authService from './authService'
 import { deductForBet, creditWinnings, refundStake } from './walletService'
@@ -22,9 +22,9 @@ function delay(ms = 400) {
 function readBets() {
   try {
     const raw = localStorage.getItem(BETS_KEY)
-    return raw ? JSON.parse(raw) : demoBets()
+    return raw ? JSON.parse(raw) : []
   } catch {
-    return demoBets()
+    return []
   }
 }
 

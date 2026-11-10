@@ -134,7 +134,7 @@ export default function BetSlipCard({ className }) {
 
           <p className="mt-2 flex items-start gap-1.5 text-[10px] leading-relaxed text-white/35">
             <Info className="mt-0.5 h-3 w-3 shrink-0" />
-            Odds and results are for demonstration only.
+            Odds and results are subject to change.
           </p>
         </div>
       )}

@@ -21,8 +21,8 @@ export default function WalletCard({
           {formatCurrency(balance, currency)}
         </p>
         <p className="mt-1 flex items-center gap-1.5 text-xs text-white/40">
-          <Badge tone="green" dot>Demo Money</Badge>
-          Free development wallet
+          <Badge tone="green" dot>Live Wallet</Badge>
+          Real money balance
         </p>
         {!compact && (
           <div className="mt-4 flex gap-2.5">

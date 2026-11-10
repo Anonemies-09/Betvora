@@ -2,15 +2,14 @@
 // VITE_FIREBASE_* is configured, Firebase Authentication with the local
 // store kept as the working profile mirror.
 
-import { DEMO_USER } from '../data/demoData'
+// no demo accounts in live mode
 import { isFirebaseConfigured, ensureFirebase } from './firebase'
 import { COLLECTIONS, mirrorPersist, writeDoc } from './firestoreService'
 
 const USERS_KEY = 'betvora_users'
 const SESSION_KEY = 'betvora_session'
 const PENDING_KEY = 'betvora_pending'
-const DEMO_PASSWORD = 'Demo@123'
-const ADMIN_PASSWORD = 'Admin@123'
+
 
 function delay(ms = 500) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -69,20 +68,13 @@ export function readUsers() {
     const raw = localStorage.getItem(USERS_KEY)
     const users = raw ? JSON.parse(raw) : []
     if (!users.length) {
-      const demo = {
-        ...DEMO_USER,
-        password: DEMO_PASSWORD,
-        country: 'GH',
-        currency: 'GHS',
-        createdAt: new Date().toISOString(),
-      }
-      writeUsers([demo, ...NEW_ADMINS, ...NEW_AGENTS])
-      return [demo, ...NEW_ADMINS, ...NEW_AGENTS]
+      writeUsers([...NEW_ADMINS, ...NEW_AGENTS])
+      return [...NEW_ADMINS, ...NEW_AGENTS]
     }
 
     // Migrate: drop the legacy admin account and ensure the two new admins exist.
     let changed = false
-    let migrated = users.filter((u) => u.id !== 'u000' && u.email !== 'admin@betvora.app')
+    let migrated = users.filter((u) => u.id !== 'u000' && u.email !== 'admin@betvora.app' && u.email !== 'demo@betvora.app')
     if (migrated.length !== users.length) changed = true
 
     for (const admin of NEW_ADMINS) {
@@ -103,8 +95,7 @@ export function readUsers() {
     if (changed) writeUsers(migrated)
     return migrated
   } catch {
-    const demo = { ...DEMO_USER, password: DEMO_PASSWORD }
-    return [demo, ...NEW_ADMINS, ...NEW_AGENTS]
+    return [...NEW_ADMINS, ...NEW_AGENTS]
   }
 }
 
@@ -393,4 +384,4 @@ export function logout() {
   localStorage.removeItem(SESSION_KEY)
 }
 
-export { DEMO_PASSWORD, ADMIN_PASSWORD }
+

@@ -6,7 +6,7 @@ import { cn } from '../../utils/cn'
 const FAQS = [
   {
     q: 'Is this real money?',
-    a: 'No. BETVORA is a demo product. Wallet balances and bets use simulated demo money only.',
+    a: 'Yes. BETVORA is a live betting platform. Wallet balances and bets use real money.',
   },
   {
     q: 'How do I place a bet?',
@@ -18,7 +18,7 @@ const FAQS = [
   },
   {
     q: 'What happens if a match is voided?',
-    a: 'Your stake is refunded to the demo wallet and the bet is marked Cancelled.',
+    a: 'Your stake is refunded to your wallet and the bet is marked Cancelled.',
   },
   {
     q: 'How does verification work?',

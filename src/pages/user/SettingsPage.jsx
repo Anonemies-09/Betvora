@@ -4,6 +4,7 @@ import Card from '../../components/common/Card'
 import { useWallet } from '../../context/WalletContext'
 import { useTheme } from '../../context/ThemeContext'
 import { getAdConsent, setAdConsent } from '../../services/adsService'
+import { requestNotificationPermission } from '../../services/notificationService'
 import { CURRENCIES } from '../../data/countries'
 import { cn } from '../../utils/cn'
 
@@ -13,6 +14,7 @@ const DEFAULT_SETTINGS = {
   betNotifications: true,
   winNotifications: true,
   promoNotifications: true,
+  browserNotifications: true,
   sound: true,
   compactMode: false,
 }
@@ -119,6 +121,22 @@ export default function SettingsPage() {
           onChange={(v) => update({ promoNotifications: v })}
           label="Promotions"
         />
+        <Toggle
+          checked={settings.browserNotifications}
+          onChange={async (v) => {
+            if (v) {
+              const permission = await requestNotificationPermission()
+              if (permission !== 'granted') {
+                update({ browserNotifications: false })
+                window.alert('Browser notifications were not allowed. Enable them in your browser settings.')
+                return
+              }
+            }
+            update({ browserNotifications: v })
+          }}
+          label="Browser push notifications"
+          description="Uses your device's default notification sound."
+        />
       </Card>
 
       <Card className="divide-y divide-white/5">
@@ -208,8 +226,7 @@ export default function SettingsPage() {
       <Card className="flex items-center gap-3 p-4">
         <ShieldCheck className="h-5 w-5 shrink-0 text-success" />
         <p className="text-xs leading-relaxed text-white/40">
-          Settings are stored locally in your browser for this demo. Cloud sync arrives with
-          Firebase.
+          Settings are stored in your account and synced with Firebase.
         </p>
       </Card>
     </div>

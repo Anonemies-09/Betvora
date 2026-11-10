@@ -1,7 +1,6 @@
 // Admin-managed homepage banners, backed by localStorage with a Firestore
 // mirror (same pattern as the other services).
 
-import { BANNERS } from '../data/demoData'
 import { COLLECTIONS, mirrorPersist, mirrorDelete } from './firestoreService'
 
 const BANNERS_KEY = 'betvora_banners'
@@ -15,11 +14,10 @@ export function readBanners() {
     const raw = localStorage.getItem(BANNERS_KEY)
     if (raw) return JSON.parse(raw)
   } catch {
-    /* fall through to seed */
+    /* fall through */
   }
-  const seed = [...BANNERS].sort((a, b) => a.order - b.order)
-  localStorage.setItem(BANNERS_KEY, JSON.stringify(seed))
-  return seed
+  localStorage.setItem(BANNERS_KEY, JSON.stringify([]))
+  return []
 }
 
 function persist(banners) {

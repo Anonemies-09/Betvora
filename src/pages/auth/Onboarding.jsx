@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Logo from '../../components/common/Logo'
 import Button from '../../components/common/Button'
 import { cn } from '../../utils/cn'
@@ -29,12 +29,16 @@ const SLIDES = [
 ]
 
 export default function Onboarding() {
+  const navigate = useNavigate()
   const [index, setIndex] = useState(0)
   const slide = SLIDES[index]
   const isLast = index === SLIDES.length - 1
 
   const next = () => {
-    if (isLast) return
+    if (isLast) {
+      navigate('/welcome', { replace: true })
+      return
+    }
     setIndex((i) => i + 1)
   }
 
@@ -112,7 +116,7 @@ export default function Onboarding() {
           Create a free account
         </Link>
         <p className="text-center text-xs text-white/40">
-          18+. Play responsibly. No real money involved.
+          18+. Play responsibly. Real money betting.
         </p>
       </div>
     </div>

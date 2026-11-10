@@ -11,7 +11,7 @@ const STAT_DEFS = [
   { key: 'activeBets', label: 'Active Bets', icon: ReceiptText, color: 'text-success' },
   { key: 'pendingBets', label: 'Pending Bets', icon: Clock, color: 'text-sky-300' },
   { key: 'settled', label: 'Settled Bets', icon: Trophy, color: 'text-gold' },
-  { key: 'deposits', label: 'Demo Deposits', icon: Coins, color: 'text-success' },
+  { key: 'deposits', label: 'Deposits', icon: Coins, color: 'text-success' },
 ]
 
 export default function AdminDashboardPage() {
@@ -86,10 +86,9 @@ export default function AdminDashboardPage() {
           </p>
         </Card>
         <Card className="p-5">
-          <h2 className="text-sm font-black uppercase tracking-widest text-white">Demo mode</h2>
+          <h2 className="text-sm font-black uppercase tracking-widest text-white">Live mode</h2>
           <p className="mt-2 text-sm leading-relaxed text-white/50">
-            All balances are simulated demo money. Switching to Firebase (Phase 13) keeps the same
-            service contracts.
+            Balances are real money. Deposits and withdrawals are processed manually via Telecel Cash.
           </p>
         </Card>
       </div>

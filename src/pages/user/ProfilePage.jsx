@@ -92,7 +92,7 @@ export default function ProfilePage() {
       <Card className="flex items-center gap-3 p-4">
         <ShieldCheck className="h-5 w-5 shrink-0 text-gold" />
         <p className="text-xs leading-relaxed text-white/40">
-          BETVORA is a demo product. Balances and bets use demo money only — no real payments.
+          BETVORA is live. Balances and bets involve real money. Play responsibly.
         </p>
       </Card>
     </div>

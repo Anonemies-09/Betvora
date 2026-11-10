@@ -90,8 +90,7 @@ function GameDemoModal({ game, open, onClose }) {
         </div>
 
         <p className="rounded-xl border border-royal-400/30 bg-navy-800/60 px-4 py-3 text-xs leading-relaxed text-white/45">
-          Demo mode. Winnings and losses hit your demo wallet instantly — no real money is ever
-          involved on BETVORA.
+          Winnings and losses hit your wallet instantly. Play responsibly.
         </p>
       </div>
     </Modal>
