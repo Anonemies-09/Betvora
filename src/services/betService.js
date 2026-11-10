@@ -69,15 +69,23 @@ export async function placeBet({ selections, stake, userId }) {
     })),
   }
   bets.unshift(bet)
-  persist(bets)
+  // Take the stake first: if the balance is short we must not leave a
+  // phantom pending bet behind. If saving fails, return the stake.
   await deductForBet(value, `Bet placed — #BV${bet.id}`, uid)
+  try {
+    persist(bets)
+  } catch (err) {
+    await refundStake(value, `Bet #BV${bet.id} could not be saved`, uid)
+    throw err
+  }
   createNotification({ type: 'bet', title: 'Bet placed', text: `Your bet #BV${bet.id} has been placed successfully.` })
   return bet
 }
 
 export async function getMyBets() {
   await delay()
-  return readBets()
+  const uid = currentUserId()
+  return readBets().filter((bet) => bet.userId === uid)
 }
 
 export async function getAllBets() {
