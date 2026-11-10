@@ -25,6 +25,7 @@ function iso(daysAgo = 0, hoursAgo = 0) {
 }
 
 function getCurrentUserId() {
+  if (typeof localStorage === 'undefined') return 'u001'
   try {
     const raw = localStorage.getItem('betvora_session')
     const session = raw ? JSON.parse(raw) : null
@@ -35,6 +36,7 @@ function getCurrentUserId() {
 }
 
 function readWallets() {
+  if (typeof localStorage === 'undefined') return {}
   try {
     const raw = localStorage.getItem(WALLETS_KEY)
     if (raw) {
@@ -63,6 +65,7 @@ function readWallets() {
 }
 
 function writeWallets(wallets) {
+  if (typeof localStorage === 'undefined') return
   localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets))
 }
 

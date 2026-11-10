@@ -106,7 +106,14 @@ function findUser(users, identifier) {
 }
 
 export async function register(payload) {
-  if (isFirebaseConfigured) return registerWithFirebase(payload)
+  if (isFirebaseConfigured) {
+    try {
+      return await registerWithFirebase(payload)
+    } catch (err) {
+      // Firebase Auth may be unreachable/slow; keep the app usable offline.
+      return registerLocal(payload)
+    }
+  }
   return registerLocal(payload)
 }
 
@@ -210,7 +217,13 @@ async function registerLocal({
 }
 
 export async function login(payload) {
-  if (isFirebaseConfigured) return loginWithFirebase(payload)
+  if (isFirebaseConfigured) {
+    try {
+      return await loginWithFirebase(payload)
+    } catch (err) {
+      return loginLocal(payload)
+    }
+  }
   return loginLocal(payload)
 }
 
@@ -221,13 +234,20 @@ async function loginWithFirebase({ identifier, password }) {
   const { signInWithEmailAndPassword } = await import('firebase/auth')
   const { auth } = await ensureFirebase()
   const email = localUser?.email || (/@/.test(identifier) ? String(identifier).toLowerCase() : '')
+
+  let firebaseOk = false
   try {
-    await signInWithEmailAndPassword(auth, email || identifier, password)
+    await Promise.race([
+      signInWithEmailAndPassword(auth, email || identifier, password),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('firebase-auth-timeout')), 4000)),
+    ])
+    firebaseOk = true
   } catch (err) {
-    // Demo convenience: local-only accounts (demo@betvora.app) may still
-    // sign in even though they were never created in Firebase Auth.
+    // Demo convenience: local accounts may still sign in even when Firebase
+    // Auth is unreachable, restricted, or the account was never created there.
     if (!localUser || localUser.password !== password) throw err
   }
+
   if (!localUser) throw new Error('Invalid email/phone or password.')
   if (localUser.isSuspended) {
     throw new Error('This account has been suspended. Contact support.')
