@@ -273,3 +273,29 @@ html[data-theme='light'] {
       drop-shadow(0 0 12px rgba(13, 71, 161, 0.5));
   }
 }
+
+/* Aviator crash impact */
+@keyframes crash-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  15% {
+    transform: translate3d(-7px, 3px, 0);
+  }
+  30% {
+    transform: translate3d(6px, -4px, 0);
+  }
+  45% {
+    transform: translate3d(-5px, -2px, 0);
+  }
+  60% {
+    transform: translate3d(4px, 3px, 0);
+  }
+  80% {
+    transform: translate3d(-2px, -1px, 0);
+  }
+}
+.animate-crash-shake {
+  animation: crash-shake 0.45s ease-in-out;
+}

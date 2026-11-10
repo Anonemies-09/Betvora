@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Copy, History, Plane, ShieldCheck, Wallet } from 'lucide-react'
+import { ArrowLeft, Copy, History, Plane, ShieldCheck, Volume2, VolumeX, Wallet } from 'lucide-react'
 import Card from '../../components/common/Card'
 import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
+import AviatorPlane from '../../components/games/AviatorPlane'
 import { useAuth } from '../../context/AuthContext'
 import { useWallet } from '../../context/WalletContext'
 import * as walletService from '../../services/walletService'
+import { isMuted, play as playSound, setMuted, unlock as unlockAudio } from '../../services/aviatorAudio'
 import { formatCurrency, formatOdds } from '../../utils/format'
 import {
   crashPointFromSeed,
@@ -26,7 +28,7 @@ const NEXT_ROUND_DELAY = 4000
 const MIN_STAKE = 10
 const MAX_STAKE = 100000
 const PRESETS = [50, 100, 200, 500]
-const START_POINT = { x: 6, y: 88 }
+const START_POINT = { x: 8, y: 86 }
 
 function crashTone(value) {
   if (value >= 10) return 'bg-gold text-navy-800'
@@ -43,7 +45,12 @@ function FlightCanvas({ phase, mult, crashAt, trail }) {
   const waiting = phase === 'waiting'
 
   return (
-    <div className="relative aspect-[16/11] w-full overflow-hidden rounded-2xl border border-royal-400/30 bg-gradient-to-b from-navy-800 via-navy to-black/60 sm:aspect-[16/8]">
+    <div
+      className={cn(
+        'relative aspect-[16/11] w-full overflow-hidden rounded-2xl border border-royal-400/30 bg-gradient-to-b from-navy-800 via-navy to-black/60 sm:aspect-[16/8]',
+        crashed && 'animate-crash-shake',
+      )}
+    >
       <div className="banner-grid absolute inset-0 opacity-40" />
 
       <svg
@@ -101,20 +108,23 @@ function FlightCanvas({ phase, mult, crashAt, trail }) {
 
       {!waiting && (
         <div
-          className="pointer-events-none absolute z-10 transition-transform duration-100 ease-linear"
+          className="pointer-events-none absolute z-10"
           style={{
             left: `${last.x}%`,
             top: `${last.y}%`,
             transform: `translate(-50%, -50%) rotate(${angle}deg)`,
           }}
         >
-          <Plane
-            className={cn('h-8 w-8 drop-shadow-lg sm:h-10 sm:w-10', crashed ? 'text-danger' : 'text-gold')}
-            fill="currentColor"
-            strokeWidth={1}
+          <AviatorPlane
+            className={cn(
+              'h-12 w-12 drop-shadow-[0_8px_14px_rgba(0,0,0,0.55)] transition-opacity sm:h-14 sm:w-14',
+              crashed && 'opacity-50 saturate-50',
+            )}
           />
         </div>
       )}
+
+      {crashed && <div className="pointer-events-none absolute inset-0 z-10 bg-danger/10" />}
 
       <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-2 p-3">
         <div className="flex flex-wrap gap-1.5">
@@ -188,6 +198,7 @@ export default function AviatorPage() {
   const [countdown, setCountdown] = useState(WAIT_SECONDS)
   const [mult, setMult] = useState(WAIT_SECONDS)
   const [trail, setTrail] = useState([START_POINT])
+  const [soundOn, setSoundOn] = useState(() => !isMuted())
   const [stake, setStake] = useState(initialSettings.stake || 100)
   const [autoCashout, setAutoCashout] = useState(initialSettings.auto || '')
   const [betQueued, setBetQueued] = useState(false)
@@ -211,6 +222,22 @@ export default function AviatorPage() {
   useEffect(() => {
     saveAviatorSettings(user?.id, { stake, auto: autoCashout })
   }, [stake, autoCashout, user?.id])
+
+  // Browsers only allow audio after a gesture; unlock on the first one.
+  useEffect(() => {
+    const unlock = () => unlockAudio()
+    window.addEventListener('pointerdown', unlock, { once: true })
+    window.addEventListener('keydown', unlock, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+  }, [])
+
+  // Countdown blips during the last three seconds.
+  useEffect(() => {
+    if (phase === 'waiting' && countdown > 0 && countdown <= 3) playSound('tick')
+  }, [phase, countdown])
 
   useEffect(
     () => () => {
@@ -274,6 +301,7 @@ export default function AviatorPage() {
     setRoundStake(activeStake)
     setBetQueued(false)
     setPhase('flying')
+    playSound('takeoff')
 
     roundRef.current = {
       seed: roundSeed,
@@ -346,6 +374,7 @@ export default function AviatorPage() {
     const payout = Math.round(round.stake * value * 100) / 100
     setCashedAt(value)
     setLastRound({ won: true, multiplier: value, payout, stake: round.stake })
+    playSound('cashout')
     try {
       await walletService.creditWinnings(
         payout,
@@ -368,6 +397,7 @@ export default function AviatorPage() {
     setMult(crash)
     setCrashAt(crash)
     setRoundStake(0)
+    playSound('crash')
 
     const entry = {
       id: `av${Date.now()}`,
@@ -408,6 +438,18 @@ export default function AviatorPage() {
       return
     }
     setBetQueued(true)
+    unlockAudio()
+    playSound('bet')
+  }
+
+  function toggleSound() {
+    const next = !soundOn
+    setSoundOn(next)
+    setMuted(!next)
+    if (next) {
+      unlockAudio()
+      playSound('bet')
+    }
   }
 
   const cashedOut = cashedAt !== null
@@ -435,7 +477,22 @@ export default function AviatorPage() {
             is settled on your real wallet balance.
           </p>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={toggleSound}
+            aria-pressed={soundOn}
+            aria-label={soundOn ? 'Mute game sounds' : 'Unmute game sounds'}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-bold transition-colors',
+              soundOn
+                ? 'border-gold/40 bg-gold/10 text-gold hover:bg-gold/20'
+                : 'border-white/10 bg-white/5 text-white/40 hover:text-white/70',
+            )}
+          >
+            {soundOn ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{soundOn ? 'Sound on' : 'Sound off'}</span>
+          </button>
           {recentCrashes.length === 0 && (
             <span className="rounded-md bg-white/5 px-2 py-1 text-[11px] font-bold text-white/35">
               No rounds played yet
