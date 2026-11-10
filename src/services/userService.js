@@ -63,3 +63,30 @@ export async function deleteUser(userId) {
   writeUsers(readUsers().filter((u) => u.id !== userId))
   mirrorDelete(COLLECTIONS.users, userId)
 }
+
+export async function createUser({ fullName, email, phone, password, role = 'user', country = 'GH', currency = 'GHS' }) {
+  await delay()
+  const users = readUsers()
+  const normalized = String(email || '').toLowerCase()
+  if (!normalized) throw new Error('Email is required.')
+  if (users.some((u) => u.email.toLowerCase() === normalized)) {
+    throw new Error('An account with this email already exists.')
+  }
+  const user = {
+    id: `u${Date.now()}`,
+    fullName: fullName || '',
+    email: normalized,
+    phone: phone || '',
+    password,
+    country,
+    currency,
+    isVerified: true,
+    isSuspended: false,
+    role,
+    referralCode: `BV-${String(fullName || '').replace(/[^a-z]/gi, '').slice(0, 4).toUpperCase()}${Math.floor(100 + Math.random() * 900)}`,
+    createdAt: new Date().toISOString(),
+  }
+  users.push(user)
+  writeUsers(users)
+  return publicUser(user)
+}

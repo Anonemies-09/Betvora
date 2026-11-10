@@ -5,7 +5,8 @@ import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import EmptyState from '../../components/common/EmptyState'
-import { getAllUsers, setUserVerified, setUserSuspended, setUserRole, deleteUser } from '../../services/userService'
+import { getAllUsers, setUserVerified, setUserSuspended, setUserRole, deleteUser, createUser } from '../../services/userService'
+import Modal from '../../components/common/Modal'
 import { formatDate } from '../../utils/format'
 
 function RoleBadge({ role }) {
@@ -18,6 +19,10 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [agentModal, setAgentModal] = useState(false)
+  const [agentForm, setAgentForm] = useState({ fullName: '', email: '', phone: '', password: '' })
+  const [agentError, setAgentError] = useState('')
+  const [agentLoading, setAgentLoading] = useState(false)
 
   const load = (query = search) =>
     getAllUsers({ search: query }).then((data) => {
@@ -56,6 +61,32 @@ export default function AdminUsersPage() {
     load()
   }
 
+  const createAgent = async (e) => {
+    e.preventDefault()
+    setAgentError('')
+    if (!agentForm.fullName.trim() || !agentForm.email.trim() || !agentForm.password.trim()) {
+      setAgentError('Name, email and password are required.')
+      return
+    }
+    setAgentLoading(true)
+    try {
+      await createUser({
+        fullName: agentForm.fullName.trim(),
+        email: agentForm.email.trim(),
+        phone: agentForm.phone.trim(),
+        password: agentForm.password,
+        role: 'agent',
+      })
+      setAgentModal(false)
+      setAgentForm({ fullName: '', email: '', phone: '', password: '' })
+      load()
+    } catch (err) {
+      setAgentError(err.message)
+    } finally {
+      setAgentLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -74,6 +105,7 @@ export default function AdminUsersPage() {
           <Button variant="secondary" onClick={handleSearch}>
             Go
           </Button>
+          <Button onClick={() => setAgentModal(true)}>Create Agent</Button>
         </div>
       </div>
 
@@ -140,6 +172,19 @@ export default function AdminUsersPage() {
           </div>
         </Card>
       )}
+
+      <Modal open={agentModal} onClose={() => setAgentModal(false)} title="Create Agent Account">
+        <form onSubmit={createAgent} className="space-y-4">
+          <Input label="Full Name" value={agentForm.fullName} onChange={(e) => setAgentForm((f) => ({ ...f, fullName: e.target.value }))} />
+          <Input label="Email" type="email" value={agentForm.email} onChange={(e) => setAgentForm((f) => ({ ...f, email: e.target.value }))} />
+          <Input label="Phone" value={agentForm.phone} onChange={(e) => setAgentForm((f) => ({ ...f, phone: e.target.value }))} />
+          <Input label="Password" type="password" value={agentForm.password} onChange={(e) => setAgentForm((f) => ({ ...f, password: e.target.value }))} />
+          {agentError && <p className="text-sm text-danger">{agentError}</p>}
+          <Button type="submit" fullWidth loading={agentLoading}>
+            Create Agent
+          </Button>
+        </form>
+      </Modal>
     </div>
   )
 }

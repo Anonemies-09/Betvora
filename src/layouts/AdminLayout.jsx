@@ -98,6 +98,13 @@ export default function AdminLayout() {
               A
             </span>
             <span className="hidden text-sm font-semibold sm:inline">{user?.fullName}</span>
+            <button
+              onClick={handleLogout}
+              aria-label="Logout"
+              className="rounded-lg border border-white/10 bg-navy-800 p-2 text-white/70 transition-colors hover:text-danger"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </header>
         <main className="mx-auto max-w-6xl p-4 pb-16 sm:p-6">

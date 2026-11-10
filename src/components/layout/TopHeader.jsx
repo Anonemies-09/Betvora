@@ -1,5 +1,5 @@
-import { Link, NavLink } from 'react-router-dom'
-import { Menu, Bell, ChevronDown, Wallet, Sun, Moon } from 'lucide-react'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Menu, Bell, ChevronDown, Wallet, Sun, Moon, LogOut } from 'lucide-react'
 import Logo from '../common/Logo'
 import { useAuth } from '../../context/AuthContext'
 import { useWallet } from '../../context/WalletContext'
@@ -18,8 +18,14 @@ const NAV_LINKS = [
 ]
 
 export default function TopHeader({ onOpenMenu }) {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const { balance, currency } = useWallet()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
   const { theme, toggleTheme } = useTheme()
   const { unreadCount } = useNotifications()
 
@@ -98,6 +104,13 @@ export default function TopHeader({ onOpenMenu }) {
               </span>
             )}
           </Link>
+          <button
+            onClick={handleLogout}
+            aria-label="Logout"
+            className="rounded-md border border-white/10 bg-royal p-2.5 text-white/70 transition-colors hover:text-danger"
+          >
+            <LogOut className="h-4.5 w-4.5" />
+          </button>
           <Link
             to="/profile"
             className="hidden shrink-0 items-center gap-2 rounded-md border border-white/10 bg-royal py-1.5 pl-1.5 pr-2.5 text-white transition-colors hover:bg-royal-600 sm:flex"
