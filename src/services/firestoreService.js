@@ -38,6 +38,25 @@ export function isAvailable() {
   return isFirebaseConfigured
 }
 
+// Firestore rejects `undefined` field values, so strip them (recursively)
+// before any write. This also keeps plaintext passwords out of Firestore
+// when callers set `password: undefined`.
+function cleanForFirestore(value) {
+  if (value === undefined) return undefined
+  if (Array.isArray(value)) {
+    return value.map(cleanForFirestore).filter((v) => v !== undefined)
+  }
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    const out = {}
+    for (const [k, v] of Object.entries(value)) {
+      const cleaned = cleanForFirestore(v)
+      if (cleaned !== undefined) out[k] = cleaned
+    }
+    return out
+  }
+  return value
+}
+
 async function ref(kind) {
   const { collection } = await import('firebase/firestore')
   const { db } = await ensureFirebase()
@@ -66,8 +85,9 @@ export async function getDocById(kind, id) {
 export async function writeDoc(kind, id, data) {
   const { setDoc, doc } = await import('firebase/firestore')
   const { db } = await ensureFirebase()
-  await setDoc(doc(db, COLLECTIONS[kind], String(id)), data, { merge: true })
-  return { id, ...data }
+  const cleaned = cleanForFirestore(data)
+  await setDoc(doc(db, COLLECTIONS[kind], String(id)), cleaned, { merge: true })
+  return { id, ...cleaned }
 }
 
 export async function deleteDocById(kind, id) {
@@ -84,7 +104,7 @@ export async function mirrorPersist(kind, items) {
     const batch = writeBatch(db)
     for (const item of items) {
       if (!item || item.id == null) continue
-      batch.set(doc(db, COLLECTIONS[kind], String(item.id)), item, { merge: true })
+      batch.set(doc(db, COLLECTIONS[kind], String(item.id)), cleanForFirestore(item), { merge: true })
     }
     await batch.commit()
   } catch (err) {
