@@ -11,6 +11,12 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>,
 )
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}
+
 // Seed Firestore with the demo catalogue and hydrate localStorage from it.
 // Fire-and-forget so it never blocks first paint.
 bootstrapFirestore()

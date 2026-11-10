@@ -41,7 +41,7 @@ export default function UserLayout() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <Sidebar />
+            <Sidebar mobile />
           </div>
         </div>
       )}

@@ -1,0 +1,27 @@
+{
+  "name": "BETVORA",
+  "short_name": "Betvora",
+  "description": "Live sports betting and casino",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07152F",
+  "theme_color": "#07152F",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -51,6 +51,7 @@ import { AdminRedirect } from './pages/admin/AdminPlaceholder'
 import NotFound from './pages/NotFound'
 import LegalPage from './pages/legal/LegalPage'
 import ConsentNotice from './components/common/ConsentNotice'
+import InstallPrompt from './components/common/InstallPrompt'
 
 function App() {
   return (
@@ -149,6 +150,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <ConsentNotice />
+      <InstallPrompt />
     </BrowserRouter>
   )
 }

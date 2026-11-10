@@ -19,12 +19,12 @@ function SectionTitle({ children }) {
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobile = false }) {
   const { user } = useAuth()
   const topLeagues = LEAGUES.filter((l) => l.popular)
   const isStaff = user?.role === 'admin' || user?.role === 'agent'
   return (
-    <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 overflow-y-auto border-r border-white/5 bg-navy-800/40 p-4 no-scrollbar lg:block">
+    <aside className={cn('sticky top-16 h-[calc(100vh-4rem)] w-72 shrink-0 overflow-y-auto border-r border-white/5 bg-navy-800/40 p-4 no-scrollbar', mobile ? 'block' : 'hidden lg:block')}>
       <div className="space-y-6">
         <div>
           <SectionTitle>Quick Links</SectionTitle>
