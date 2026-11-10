@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import Button from './Button'
-import { cn } from '../../utils/cn'
 
 export default function InstallPrompt() {
   const [deferred, setDeferred] = useState(null)

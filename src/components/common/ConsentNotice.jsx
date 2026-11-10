@@ -37,7 +37,7 @@ export default function ConsentNotice() {
         <div className="flex-1 text-xs leading-relaxed text-white/60">
           <p className="font-black uppercase tracking-widest text-white/80">Cookies on BETVORA</p>
           <p className="mt-1">
-            We use essential cookies to keep the demo running and your session signed in. With
+            We use essential cookies to keep the site running and your session signed in. With
             your OK we also use non-essential cookies for analytics and advertising. Read our{' '}
             <Link to="/cookies" className="font-semibold text-gold hover:text-gold-600">
               Cookie Policy

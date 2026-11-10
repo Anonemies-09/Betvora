@@ -1,5 +1,5 @@
 // BETVORA games catalogue — casino, virtual sports and instant/crash titles.
-// These are demo entries; real releases hook the same shapes to provider feeds.
+// Entries describe the lobby; the playable titles settle against the user wallet.
 
 export const CASINO_CATEGORIES = [
   {
@@ -144,5 +144,5 @@ export const VIRTUAL_SPORTS = [
 
 export const GAME_BANNER = {
   title: 'The floor is open',
-  subtitle: 'Slots, live dealers, crash games and instant wins — all on your demo wallet.',
+  subtitle: 'Slots, live dealers, crash games and instant wins — all on your BETVORA wallet.',
 }

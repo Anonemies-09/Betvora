@@ -23,6 +23,7 @@ import HomePage from './pages/user/HomePage'
 import CasinoPage from './pages/user/CasinoPage'
 import VirtualSportsPage from './pages/user/VirtualSportsPage'
 import CrashGamesPage from './pages/user/CrashGamesPage'
+import AviatorPage from './pages/user/AviatorPage'
 import SportsPage from './pages/user/SportsPage'
 import InPlayPage from './pages/user/InPlayPage'
 import MatchDetailsPage from './pages/user/MatchDetailsPage'
@@ -108,6 +109,7 @@ function App() {
           <Route path="/casino" element={<CasinoPage />} />
           <Route path="/virtuals" element={<VirtualSportsPage />} />
           <Route path="/crash" element={<CrashGamesPage />} />
+          <Route path="/aviator" element={<AviatorPage />} />
           <Route path="/slots" element={<CasinoPage />} />
           <Route path="/sports" element={<SportsPage />} />
           <Route path="/sports/:filterId" element={<SportsPage />} />

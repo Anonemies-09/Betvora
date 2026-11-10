@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Radio, Zap, Flame, Shield } from 'lucide-react'
+import { Home, Radio, Zap, Flame, Shield, Plane } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { SPORTS, LEAGUES } from '../../data/catalogue'
 import { cn } from '../../utils/cn'
@@ -8,6 +8,7 @@ import { flagEmoji } from '../../utils/format'
 const QUICK_LINKS = [
   { to: '/home', label: 'Home', icon: Home },
   { to: '/in-play', label: 'In-Play', icon: Radio },
+  { to: '/aviator', label: 'Aviator', icon: Plane },
   { to: '/promotions', label: 'Promotions', icon: Zap },
 ]
 

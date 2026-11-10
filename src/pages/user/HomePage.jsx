@@ -11,6 +11,7 @@ import {
   Gift,
   Zap,
   TrendingUp,
+  Plane,
   Users,
   ChevronRight,
   Check,
@@ -32,6 +33,7 @@ const CATEGORIES = [
   { label: 'Sports', icon: CircleDot, to: '/sports', accent: '#4CAF50' },
   { label: 'Live Betting', icon: Radio, to: '/in-play', accent: '#F44336' },
   { label: 'Casino', icon: Dices, to: '/casino', accent: '#FFC107' },
+  { label: 'Aviator', icon: Plane, to: '/aviator', accent: '#F44336' },
   { label: 'Crash Games', icon: TrendingUp, to: '/crash', accent: '#FFD54F' },
   { label: 'Virtuals', icon: Zap, to: '/virtuals', accent: '#1E88E5' },
   { label: 'Esports', icon: Gamepad2, to: '/sports/esports', accent: '#A78BFA' },
@@ -41,6 +43,7 @@ const CATEGORIES = [
 const MATCH_TABS = ['Live Now', 'Top Matches', 'Popular', 'A–Z Sports']
 
 const PROMO_CARDS = [
+  { title: 'Aviator', action: 'Play Now', to: '/aviator', icon: Plane, accent: '#F44336', extra: 'Cash out in time' },
   { title: 'Crash Games', action: 'Play Now', to: '/crash', icon: TrendingUp, accent: '#FFC107' },
   { title: 'Virtual Sports', action: 'Play Now', to: '/virtuals', icon: Zap, accent: '#1E88E5' },
   { title: 'Casino Games', action: 'Play Now', to: '/casino', icon: Dices, accent: '#FFC107' },

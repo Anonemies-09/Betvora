@@ -45,6 +45,7 @@ const ROUTES = [
   ['/casino', 'The floor is open'],
   ['/virtuals', 'Virtual Sports'],
   ['/crash', 'Crash Games'],
+  ['/aviator', 'Aviator'],
   ['/slots', 'The floor is open'],
   ['/match/m001', 'Match not found'],
   ['/bet-slip', 'bet slip'],

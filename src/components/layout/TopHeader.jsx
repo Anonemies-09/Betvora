@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { to: '/casino', label: 'Casino' },
   { to: '/virtuals', label: 'Virtual Sports' },
   { to: '/crash', label: 'Crash Games' },
+  { to: '/aviator', label: 'Aviator' },
   { to: '/promotions', label: 'Promotions' },
 ]
 

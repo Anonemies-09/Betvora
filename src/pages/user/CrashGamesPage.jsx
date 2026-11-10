@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Play, Ban, Trophy, TrendingUp, Zap } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Play, Ban, Trophy, TrendingUp, Zap, Plane } from 'lucide-react'
 import Card from '../../components/common/Card'
 import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
 import { CRASH_GAMES } from '../../data/gamesData'
+import { useAuth } from '../../context/AuthContext'
 import { useWallet } from '../../context/WalletContext'
+import * as walletService from '../../services/walletService'
 import { formatCurrency, formatOdds } from '../../utils/format'
 import { cn } from '../../utils/cn'
 
@@ -17,16 +20,12 @@ function pickCrashPoint() {
 }
 
 export default function CrashGamesPage() {
-  const { balance, currency, withdraw, deposit } = useWallet()
+  const { user } = useAuth()
+  const { balance, currency, refresh } = useWallet()
   const [stake, setStake] = useState(100)
   const [phase, setPhase] = useState('idle')
   const [mult, setMult] = useState(1)
-  const [history, setHistory] = useState([
-    { mult: 2.14, cashed: true },
-    { mult: 1.02, cashed: false },
-    { mult: 6.5, cashed: true },
-    { mult: 1.31, cashed: true },
-  ])
+  const [history, setHistory] = useState([])
   const [lastWin, setLastWin] = useState(0)
   const [error, setError] = useState('')
   const timerRef = useRef(null)
@@ -39,7 +38,8 @@ export default function CrashGamesPage() {
     if (runningRef.current) return
     setError('')
     try {
-      await withdraw(stake)
+      await walletService.deductForBet(stake, 'Crash round stake', user?.id)
+      await refresh()
     } catch (err) {
       setError(err.message)
       return
@@ -72,7 +72,8 @@ export default function CrashGamesPage() {
     const win = Math.round(cashInRef.current * mult)
     setLastWin(win)
     try {
-      await deposit(win)
+      await walletService.creditWinnings(win, `Crash cash out at ${mult.toFixed(2)}x`, user?.id)
+      await refresh()
     } catch {
       /* ignore */
     }
@@ -94,23 +95,47 @@ export default function CrashGamesPage() {
             Crash Games
           </h1>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/50">
-            Watch the multiplier climb and cash out before it busts. Full demo rounds on your
-            wallet — no real money, ever.
+            Watch the multiplier climb and cash out before it busts. Every round settles against
+            your real wallet balance.
           </p>
+          <Link
+            to="/aviator"
+            className="mt-4 inline-flex items-center gap-2 rounded-[10px] bg-gold px-5 py-3 text-sm font-bold text-navy-800 transition-colors hover:bg-gold-600"
+          >
+            <Plane className="h-4 w-4" fill="currentColor" strokeWidth={1} /> Play Aviator
+          </Link>
         </div>
       </section>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {CRASH_GAMES.map((game) => (
-          <Card key={game.id} hoverable className="p-3">
-            <span className="text-3xl">{game.icon}</span>
-            <p className="mt-2 text-xs font-black text-white">{game.name}</p>
-            <p className="text-[10px] text-white/35">{game.multiplier}</p>
-            <p className="mt-1 text-[10px] font-bold" style={{ color: game.color }}>
-              {game.popularity}
-            </p>
-          </Card>
-        ))}
+        {CRASH_GAMES.map((game) => {
+          const inner = (
+            <>
+              <span className="text-3xl">{game.icon}</span>
+              <p className="mt-2 text-xs font-black text-white">{game.name}</p>
+              <p className="text-[10px] text-white/35">{game.multiplier}</p>
+              <p className="mt-1 text-[10px] font-bold" style={{ color: game.color }}>
+                {game.popularity}
+              </p>
+              {game.id === 'aviator' && (
+                <p className="mt-1.5 text-[10px] font-black uppercase tracking-wider text-gold">
+                  Play now →
+                </p>
+              )}
+            </>
+          )
+          return game.id === 'aviator' ? (
+            <Link key={game.id} to="/aviator" className="block">
+              <Card hoverable className="h-full border-gold/40 p-3">
+                {inner}
+              </Card>
+            </Link>
+          ) : (
+            <Card key={game.id} className="h-full p-3">
+              {inner}
+            </Card>
+          )
+        })}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
@@ -217,19 +242,25 @@ export default function CrashGamesPage() {
 
           <div className="mt-5">
             <p className="text-[11px] font-bold uppercase tracking-widest text-white/35">Recent rounds</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {history.map((h, i) => (
-                <span
-                  key={`${h.mult}-${i}`}
-                  className={cn(
-                    'rounded-md px-2 py-1 text-[11px] font-black',
-                    h.cashed ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger',
-                  )}
-                >
-                  ×{formatOdds(h.mult)}
-                </span>
-              ))}
-            </div>
+            {history.length === 0 ? (
+              <p className="mt-2 text-xs text-white/30">
+                Rounds you play will show up here.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {history.map((h, i) => (
+                  <span
+                    key={`${h.mult}-${i}`}
+                    className={cn(
+                      'rounded-md px-2 py-1 text-[11px] font-black',
+                      h.cashed ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger',
+                    )}
+                  >
+                    ×{formatOdds(h.mult)}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
       </div>

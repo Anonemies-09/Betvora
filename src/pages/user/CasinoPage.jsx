@@ -106,6 +106,10 @@ export default function CasinoPage() {
   const category = CASINO_CATEGORIES.find((c) => c.name === active) || CASINO_CATEGORIES[0]
 
   const openGame = (game) => {
+    if (game.id === 'aviator') {
+      navigate('/aviator')
+      return
+    }
     if (CRASH_IDS.includes(game.id)) {
       navigate('/crash')
       return
@@ -126,11 +130,12 @@ export default function CasinoPage() {
           </h1>
           <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/50">{GAME_BANNER.subtitle}</p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <Button onClick={() => navigate('/crash')}>
+            <Button onClick={() => navigate('/aviator')}>Play Aviator</Button>
+            <Button variant="outline" onClick={() => navigate('/crash')}>
               <TrendingUp className="h-4 w-4" />
-              Play Crash
+              Crash lobby
             </Button>
-            <Button variant="outline" onClick={() => navigate('/sports')}>
+            <Button variant="ghost" onClick={() => navigate('/sports')}>
               Browse sports odds
             </Button>
           </div>
