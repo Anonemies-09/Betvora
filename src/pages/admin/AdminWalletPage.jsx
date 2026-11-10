@@ -10,6 +10,11 @@ import {
   approveDepositRequest,
   rejectDepositRequest,
 } from '../../services/depositService'
+import {
+  getWithdrawalRequests,
+  completeWithdrawalRequest,
+  rejectWithdrawalRequest,
+} from '../../services/withdrawalService'
 import { readUsers } from '../../services/authService'
 import { cn } from '../../utils/cn'
 
@@ -24,15 +29,19 @@ const TYPE_META = {
 export default function AdminWalletPage() {
   const { balance, currency, transactions, refresh } = useWallet()
   const [filter, setFilter] = useState('all')
-  const [requests, setRequests] = useState([])
+  const [depositRequests, setDepositRequests] = useState([])
+  const [withdrawalRequests, setWithdrawalRequests] = useState([])
   const [working, setWorking] = useState(null)
 
-  const loadRequests = () => setRequests(getDepositRequests())
+  const loadRequests = () => {
+    setDepositRequests(getDepositRequests())
+    setWithdrawalRequests(getWithdrawalRequests())
+  }
   useEffect(() => {
     loadRequests()
   }, [])
 
-  const handleApprove = async (id) => {
+  const handleApproveDeposit = async (id) => {
     setWorking(id)
     try {
       await approveDepositRequest(id)
@@ -43,10 +52,32 @@ export default function AdminWalletPage() {
     }
   }
 
-  const handleReject = async (id) => {
+  const handleRejectDeposit = async (id) => {
     setWorking(id)
     try {
       await rejectDepositRequest(id, 'Not verified')
+      loadRequests()
+    } finally {
+      setWorking(null)
+    }
+  }
+
+  const handleCompleteWithdrawal = async (id) => {
+    setWorking(id)
+    try {
+      await completeWithdrawalRequest(id)
+      await refresh()
+      loadRequests()
+    } finally {
+      setWorking(null)
+    }
+  }
+
+  const handleRejectWithdrawal = async (id) => {
+    setWorking(id)
+    try {
+      await rejectWithdrawalRequest(id, 'Not verified')
+      await refresh()
       loadRequests()
     } finally {
       setWorking(null)
@@ -87,11 +118,11 @@ export default function AdminWalletPage() {
 
       <Card className="p-4">
         <h2 className="text-sm font-black uppercase tracking-widest text-white/60">Pending Telecel Cash deposits</h2>
-        {requests.filter((r) => r.status === 'pending').length === 0 ? (
+        {depositRequests.filter((r) => r.status === 'pending').length === 0 ? (
           <p className="mt-2 text-xs text-white/40">No pending deposit requests.</p>
         ) : (
           <div className="mt-3 space-y-2">
-            {requests
+            {depositRequests
               .filter((r) => r.status === 'pending')
               .map((r) => (
                 <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-navy-800 px-3 py-2.5">
@@ -102,10 +133,40 @@ export default function AdminWalletPage() {
                     </p>
                   </div>
                   <div className="flex gap-1.5">
-                    <Button size="sm" variant="primary" loading={working === r.id} onClick={() => handleApprove(r.id)}>
+                    <Button size="sm" variant="primary" loading={working === r.id} onClick={() => handleApproveDeposit(r.id)}>
                       <Check className="h-3.5 w-3.5" /> Approve
                     </Button>
-                    <Button size="sm" variant="secondary" loading={working === r.id} onClick={() => handleReject(r.id)}>
+                    <Button size="sm" variant="secondary" loading={working === r.id} onClick={() => handleRejectDeposit(r.id)}>
+                      <X className="h-3.5 w-3.5" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-white/60">Pending withdrawals</h2>
+        {withdrawalRequests.filter((r) => r.status === 'pending').length === 0 ? (
+          <p className="mt-2 text-xs text-white/40">No pending withdrawal requests.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {withdrawalRequests
+              .filter((r) => r.status === 'pending')
+              .map((r) => (
+                <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-navy-800 px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-white">{formatCurrency(r.amount, currency)}</p>
+                    <p className="text-[11px] text-white/40">
+                      User {readUsers().find((u) => u.id === r.userId)?.fullName || r.userId} �?� {r.method} �?� {r.account}
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="primary" loading={working === r.id} onClick={() => handleCompleteWithdrawal(r.id)}>
+                      <Check className="h-3.5 w-3.5" /> Complete
+                    </Button>
+                    <Button size="sm" variant="secondary" loading={working === r.id} onClick={() => handleRejectWithdrawal(r.id)}>
                       <X className="h-3.5 w-3.5" /> Reject
                     </Button>
                   </div>

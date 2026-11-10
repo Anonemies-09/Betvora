@@ -23,6 +23,7 @@ import AdSlot from '../../components/common/AdSlot'
 import WalletCard from '../../components/wallet/WalletCard'
 import { useWallet } from '../../context/WalletContext'
 import { createDepositRequest, DEPOSIT_NUMBER } from '../../services/depositService'
+import { createWithdrawalRequest } from '../../services/withdrawalService'
 import { formatCurrency, formatDate, currencySymbol } from '../../utils/format'
 import { cn } from '../../utils/cn'
 
@@ -100,6 +101,7 @@ export default function WalletPage() {
   const [txRef, setTxRef] = useState('')
   const [stage, setStage] = useState('form')
   const [submittedRequest, setSubmittedRequest] = useState(null)
+  const [submittedType, setSubmittedType] = useState(null)
 
   const isDeposit = modal === 'deposit'
   const activeMethod = PAYMENT_METHODS.find((m) => m.id === method)
@@ -112,6 +114,7 @@ export default function WalletPage() {
     setTxRef('')
     setStage('form')
     setSubmittedRequest(null)
+    setSubmittedType(null)
     setMethod(type === 'withdraw' ? 'mtn-momo' : 'mtn-momo')
     setModal(type)
   }
@@ -156,18 +159,22 @@ export default function WalletPage() {
       return
     }
 
-    // Withdrawals keep the existing (simulated) flow.
-    if (needsApproval && !account.trim()) {
-      setError(`Enter the ${activeMethod?.short} number for the push.`)
+    // Withdrawals are manual requests processed by an admin.
+    if (!account.trim()) {
+      setError(`Enter the ${activeMethod?.short} number to withdraw to.`)
       return
     }
     setLoading(true)
-    setStage('confirming')
     try {
-      await new Promise((r) => setTimeout(r, 1600))
-      await withdraw(amount, { method: activeMethod.short, account: account.trim() })
+      const request = await createWithdrawalRequest({
+        amount,
+        method: activeMethod.short,
+        account: account.trim(),
+      })
+      setSubmittedRequest(request)
+      setSubmittedType('withdraw')
+      setStage('submitted')
       await refresh()
-      closeModal()
     } catch (err) {
       setError(err.message)
       setStage('form')
@@ -236,14 +243,19 @@ export default function WalletPage() {
         {stage === 'submitted' ? (
           <div className="space-y-4">
             <div className="rounded-xl border border-success/30 bg-success/10 p-4 text-center">
-              <p className="text-sm font-black text-success">Deposit request submitted</p>
+              <p className="text-sm font-black text-success">
+                {submittedType === 'withdraw' ? 'Withdrawal request submitted' : 'Deposit request submitted'}
+              </p>
               <p className="mt-1 text-xs text-white/60">
-                Your request for {formatCurrency(submittedRequest?.amount || 0, currency)} is pending verification.
-                It will be credited to your wallet once an admin confirms the payment.
+                {submittedType === 'withdraw'
+                  ? `Your withdrawal of ${formatCurrency(submittedRequest?.amount || 0, currency)} is pending processing. The amount has been reserved in your wallet.`
+                  : `Your request for ${formatCurrency(submittedRequest?.amount || 0, currency)} is pending verification. It will be credited to your wallet once an admin confirms the payment.`}
               </p>
-              <p className="mt-2 text-[11px] text-white/40">
-                Reference: {submittedRequest?.txRef}
-              </p>
+              {submittedRequest?.txRef && (
+                <p className="mt-2 text-[11px] text-white/40">
+                  Reference: {submittedRequest.txRef}
+                </p>
+              )}
             </div>
             <Button fullWidth size="lg" onClick={closeModal}>
               Done

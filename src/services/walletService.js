@@ -109,7 +109,7 @@ export function readAllWallets() {
   return Object.values(wallets)
 }
 
-function writeWallet(userId, wallet) {
+export function writeWallet(userId, wallet) {
   const uid = userId || wallet?.id || getCurrentUserId()
   const wallets = readWallets()
   wallet.id = uid
