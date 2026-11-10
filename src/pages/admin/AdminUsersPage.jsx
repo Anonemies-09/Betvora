@@ -6,6 +6,7 @@ import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import EmptyState from '../../components/common/EmptyState'
 import { getAllUsers, setUserVerified, setUserSuspended, setUserRole, deleteUser, createUser } from '../../services/userService'
+import * as walletService from '../../services/walletService'
 import Modal from '../../components/common/Modal'
 import { formatDate } from '../../utils/format'
 
@@ -23,6 +24,9 @@ export default function AdminUsersPage() {
   const [agentForm, setAgentForm] = useState({ fullName: '', email: '', phone: '', password: '' })
   const [agentError, setAgentError] = useState('')
   const [agentLoading, setAgentLoading] = useState(false)
+  const [creditModal, setCreditModal] = useState(null)
+  const [creditAmount, setCreditAmount] = useState('')
+  const [creditLoading, setCreditLoading] = useState(false)
 
   const load = (query = search) =>
     getAllUsers({ search: query }).then((data) => {
@@ -84,6 +88,21 @@ export default function AdminUsersPage() {
       setAgentError(err.message)
     } finally {
       setAgentLoading(false)
+    }
+  }
+
+  const creditWallet = async (e) => {
+    e.preventDefault()
+    if (!creditModal) return
+    const amount = Number(creditAmount)
+    if (!amount || amount <= 0) return
+    setCreditLoading(true)
+    try {
+      await walletService.deposit(amount, { method: 'Admin credit', userId: creditModal.id })
+      setCreditModal(null)
+      setCreditAmount('')
+    } finally {
+      setCreditLoading(false)
     }
   }
 
@@ -154,6 +173,9 @@ export default function AdminUsersPage() {
                         <Ban className="h-3.5 w-3.5" />
                         {user.isSuspended ? 'Unsuspend' : 'Suspend'}
                       </Button>
+                      <Button size="sm" variant="secondary" onClick={() => setCreditModal(user)}>
+                        Credit
+                      </Button>
                       <Button size="sm" variant="secondary" onClick={() => toggleAgent(user)}>
                         {user.role === 'agent' ? 'Remove agent' : 'Make agent'}
                       </Button>
@@ -172,6 +194,24 @@ export default function AdminUsersPage() {
           </div>
         </Card>
       )}
+
+      <Modal open={Boolean(creditModal)} onClose={() => setCreditModal(null)} title="Credit Wallet">
+        <form onSubmit={creditWallet} className="space-y-4">
+          <p className="text-sm text-white/60">
+            Credit {creditModal?.fullName}'s wallet.
+          </p>
+          <Input
+            label="Amount"
+            type="number"
+            min="0"
+            value={creditAmount}
+            onChange={(e) => setCreditAmount(e.target.value)}
+          />
+          <Button type="submit" fullWidth loading={creditLoading}>
+            Credit
+          </Button>
+        </form>
+      </Modal>
 
       <Modal open={agentModal} onClose={() => setAgentModal(false)} title="Create Agent Account">
         <form onSubmit={createAgent} className="space-y-4">
