@@ -47,6 +47,17 @@ export async function setUserSuspended(userId, suspended) {
   return publicUser(user)
 }
 
+export async function setUserRole(userId, role) {
+  await delay()
+  const users = readUsers()
+  const user = users.find((u) => u.id === userId)
+  if (!user) throw new Error('User not found.')
+  if (user.role === 'admin') throw new Error('Admin role cannot be changed here.')
+  user.role = role
+  writeUsers(users)
+  return publicUser(user)
+}
+
 export async function deleteUser(userId) {
   await delay()
   writeUsers(readUsers().filter((u) => u.id !== userId))

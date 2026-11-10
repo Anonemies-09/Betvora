@@ -6,6 +6,7 @@ const tones = {
   red: 'border-danger/30 bg-danger/15 text-danger',
   navy: 'border-white/10 bg-white/5 text-white/70',
   blue: 'border-royal-400/40 bg-royal-400/20 text-sky-300',
+  purple: 'border-purple-400/40 bg-purple-400/20 text-purple-300',
 }
 
 export default function Badge({ tone = 'navy', dot = false, className, children, ...props }) {

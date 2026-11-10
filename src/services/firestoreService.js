@@ -205,6 +205,20 @@ function seedUsers() {
       referralCode: 'BV-ADMIN2',
       createdAt: new Date().toISOString(),
     },
+    {
+      id: 'agent1',
+      fullName: 'Betvora Agent One',
+      email: 'agent@betvora.app',
+      phone: '+233 20 000 0003',
+      password: 'Agent@2026',
+      country: 'GH',
+      currency: 'GHS',
+      isVerified: true,
+      isSuspended: false,
+      role: 'agent',
+      referralCode: 'BV-AGENT1',
+      createdAt: new Date().toISOString(),
+    },
   ]
 }
 

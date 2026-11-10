@@ -5,11 +5,13 @@ import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import EmptyState from '../../components/common/EmptyState'
-import { getAllUsers, setUserVerified, setUserSuspended, deleteUser } from '../../services/userService'
+import { getAllUsers, setUserVerified, setUserSuspended, setUserRole, deleteUser } from '../../services/userService'
 import { formatDate } from '../../utils/format'
 
 function RoleBadge({ role }) {
-  return role === 'admin' ? <Badge tone="gold">Admin</Badge> : <Badge tone="blue">User</Badge>
+  if (role === 'admin') return <Badge tone="gold">Admin</Badge>
+  if (role === 'agent') return <Badge tone="purple">Agent</Badge>
+  return <Badge tone="blue">User</Badge>
 }
 
 export default function AdminUsersPage() {
@@ -40,6 +42,11 @@ export default function AdminUsersPage() {
 
   const toggleSuspend = async (user) => {
     await setUserSuspended(user.id, !user.isSuspended)
+    load()
+  }
+
+  const toggleAgent = async (user) => {
+    await setUserRole(user.id, user.role === 'agent' ? 'user' : 'agent')
     load()
   }
 
@@ -114,6 +121,9 @@ export default function AdminUsersPage() {
                       >
                         <Ban className="h-3.5 w-3.5" />
                         {user.isSuspended ? 'Unsuspend' : 'Suspend'}
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => toggleAgent(user)}>
+                        {user.role === 'agent' ? 'Remove agent' : 'Make agent'}
                       </Button>
                       <button
                         onClick={() => removeUser(user)}

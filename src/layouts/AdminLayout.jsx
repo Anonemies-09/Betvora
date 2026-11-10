@@ -80,7 +80,7 @@ export default function AdminLayout() {
             <Logo size={28} withText={false} />
           </Link>
           <h1 className="text-sm font-black uppercase tracking-widest text-white/60">
-            Admin Console
+            {user?.role === 'agent' ? 'Agent Console' : 'Admin Console'}
           </h1>
           <div className="ml-auto flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold text-xs font-black text-white">

@@ -18,7 +18,7 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
-  if (adminOnly && user.role !== 'admin') {
+  if (adminOnly && user.role !== 'admin' && user.role !== 'agent') {
     return <Navigate to="/" replace />
   }
 

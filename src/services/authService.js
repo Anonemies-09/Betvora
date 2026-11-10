@@ -47,6 +47,23 @@ const NEW_ADMINS = [
   },
 ]
 
+const NEW_AGENTS = [
+  {
+    id: 'agent1',
+    fullName: 'Betvora Agent One',
+    email: 'agent@betvora.app',
+    phone: '+233 20 000 0003',
+    password: 'Agent@2026',
+    country: 'GH',
+    currency: 'GHS',
+    isVerified: true,
+    isSuspended: false,
+    role: 'agent',
+    referralCode: 'BV-AGENT1',
+    createdAt: new Date().toISOString(),
+  },
+]
+
 export function readUsers() {
   try {
     const raw = localStorage.getItem(USERS_KEY)
@@ -59,8 +76,8 @@ export function readUsers() {
         currency: 'GHS',
         createdAt: new Date().toISOString(),
       }
-      writeUsers([demo, ...NEW_ADMINS])
-      return [demo, ...NEW_ADMINS]
+      writeUsers([demo, ...NEW_ADMINS, ...NEW_AGENTS])
+      return [demo, ...NEW_ADMINS, ...NEW_AGENTS]
     }
 
     // Migrate: drop the legacy admin account and ensure the two new admins exist.
@@ -75,12 +92,19 @@ export function readUsers() {
         changed = true
       }
     }
+    for (const agent of NEW_AGENTS) {
+      const exists = migrated.some((u) => u.id === agent.id || u.email === agent.email)
+      if (!exists) {
+        migrated = [...migrated, { ...agent, createdAt: agent.createdAt }]
+        changed = true
+      }
+    }
 
     if (changed) writeUsers(migrated)
     return migrated
   } catch {
     const demo = { ...DEMO_USER, password: DEMO_PASSWORD }
-    return [demo, ...NEW_ADMINS]
+    return [demo, ...NEW_ADMINS, ...NEW_AGENTS]
   }
 }
 
