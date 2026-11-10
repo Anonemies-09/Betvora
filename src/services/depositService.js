@@ -7,6 +7,16 @@
 
 import { createNotification } from './notificationService'
 import * as walletService from './walletService'
+import * as authService from './authService'
+
+function currentUserId() {
+  try {
+    const raw = localStorage.getItem('betvora_session')
+    return (raw ? JSON.parse(raw) : null)?.id || 'u001'
+  } catch {
+    return 'u001'
+  }
+}
 
 const REQUESTS_KEY = 'betvora_deposit_requests'
 const TELECEL_NUMBER = '0507655475'
@@ -44,6 +54,7 @@ export async function createDepositRequest({ amount, senderPhone, txRef }) {
   const requests = readRequests()
   const request = {
     id: `dep${Date.now()}`,
+    userId: currentUserId(),
     amount: value,
     senderPhone: senderPhone.trim(),
     txRef: txRef.trim(),
@@ -73,6 +84,7 @@ export async function approveDepositRequest(id) {
   await walletService.deposit(request.amount, {
     method: 'Telecel Cash',
     account: request.senderPhone,
+    userId: request.userId,
   })
 
   request.status = 'approved'

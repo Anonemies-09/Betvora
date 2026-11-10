@@ -75,7 +75,7 @@ export default function Register() {
       const payload = { ...form, currency }
       delete payload.confirmPassword
       const created = await register(payload)
-      await walletService.setCurrency(currency)
+      await walletService.setCurrency(currency, created.id)
       if (isFirebaseConfigured) {
         // Firebase Auth users are verified immediately and already have a session.
         navigate('/home', { replace: true })

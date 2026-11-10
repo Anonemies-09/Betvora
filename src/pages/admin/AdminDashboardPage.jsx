@@ -4,7 +4,7 @@ import Card from '../../components/common/Card'
 import { useAuth } from '../../context/AuthContext'
 import { getAllUsers } from '../../services/userService'
 import { getAllBets } from '../../services/betService'
-import { readWallet } from '../../services/walletService'
+import { readAllWallets } from '../../services/walletService'
 
 const STAT_DEFS = [
   { key: 'users', label: 'Users', icon: Users, color: 'text-gold' },
@@ -28,15 +28,18 @@ export default function AdminDashboardPage() {
     let active = true
     Promise.all([getAllUsers(), getAllBets()]).then(([users, bets]) => {
       if (!active) return
-      const wallet = readWallet()
+      const wallets = readAllWallets()
+      const deposits = wallets.reduce(
+        (total, w) =>
+          total + (w.transactions || []).filter((t) => t.type === 'deposit').reduce((s, t) => s + Math.abs(t.amount), 0),
+        0,
+      )
       setStats({
         users: users.length,
         activeBets: bets.filter((b) => b.status === 'pending').length + 823,
         pendingBets: bets.filter((b) => b.status === 'pending').length + 210,
         settled: bets.filter((b) => b.status === 'won' || b.status === 'lost').length + 540,
-        deposits: wallet.transactions
-          .filter((t) => t.type === 'deposit')
-          .reduce((sum, t) => sum + Math.abs(t.amount), 0),
+        deposits,
       })
     })
     return () => {

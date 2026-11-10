@@ -4,7 +4,12 @@
 
 import { demoBets } from '../data/demoData'
 import { readMatches } from './matchService'
+import * as authService from './authService'
 import { deductForBet, creditWinnings, refundStake } from './walletService'
+
+function currentUserId() {
+  return authService.getSession()?.id || 'u001'
+}
 import { createNotification } from './notificationService'
 import { COLLECTIONS, mirrorPersist } from './firestoreService'
 
@@ -45,6 +50,7 @@ export async function placeBet({ selections, stake }) {
   const bets = readBets()
   const bet = {
     id: String(10000 + bets.length + 1),
+    userId: currentUserId(),
     type: selections.length === 1 ? 'single' : 'multiple',
     status: 'pending',
     stake: value,
@@ -63,7 +69,7 @@ export async function placeBet({ selections, stake }) {
   }
   bets.unshift(bet)
   persist(bets)
-  await deductForBet(value, `Bet placed — #BV${bet.id}`)
+  await deductForBet(value, `Bet placed — #BV${bet.id}`, bet.userId)
   createNotification({ type: 'bet', title: 'Bet placed', text: `Your bet #BV${bet.id} has been placed successfully.` })
   return bet
 }
@@ -88,7 +94,7 @@ export async function cancelBet(betId, reason = 'Voided by admin') {
   bet.settledAt = new Date().toISOString()
   bet.cancelReason = reason
   persist(bets)
-  await refundStake(bet.stake, `Bet #BV${bet.id} voided`)
+  await refundStake(bet.stake, `Bet #BV${bet.id} voided`, bet.userId)
   createNotification({
     type: 'system',
     title: 'Bet voided',
@@ -167,7 +173,7 @@ export async function settleBetsForMatch(matchId) {
       bet.status = 'cancelled'
       bet.settledAt = new Date().toISOString()
       changed = true
-      await refundStake(bet.stake, `Bet #BV${bet.id} voided`)
+      await refundStake(bet.stake, `Bet #BV${bet.id} voided`, bet.userId)
       createNotification({
         type: 'system',
         title: 'Bet voided',
@@ -187,7 +193,7 @@ export async function settleBetsForMatch(matchId) {
     bet.settledAt = new Date().toISOString()
     changed = true
     if (won) {
-      await creditWinnings(bet.potentialWin, `Bet #BV${bet.id} won`)
+      await creditWinnings(bet.potentialWin, `Bet #BV${bet.id} won`, bet.userId)
     }
   }
 
