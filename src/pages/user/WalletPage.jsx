@@ -22,6 +22,7 @@ import Tabs from '../../components/common/Tabs'
 import AdSlot from '../../components/common/AdSlot'
 import WalletCard from '../../components/wallet/WalletCard'
 import { useWallet } from '../../context/WalletContext'
+import { createDepositRequest, DEPOSIT_NUMBER } from '../../services/depositService'
 import { formatCurrency, formatDate, currencySymbol } from '../../utils/format'
 import { cn } from '../../utils/cn'
 
@@ -96,7 +97,9 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(false)
   const [method, setMethod] = useState('mtn-momo')
   const [account, setAccount] = useState('')
+  const [txRef, setTxRef] = useState('')
   const [stage, setStage] = useState('form')
+  const [submittedRequest, setSubmittedRequest] = useState(null)
 
   const isDeposit = modal === 'deposit'
   const activeMethod = PAYMENT_METHODS.find((m) => m.id === method)
@@ -106,7 +109,9 @@ export default function WalletPage() {
     setError('')
     setAmount('')
     setAccount('')
+    setTxRef('')
     setStage('form')
+    setSubmittedRequest(null)
     setMethod(type === 'withdraw' ? 'mtn-momo' : 'mtn-momo')
     setModal(type)
   }
@@ -119,6 +124,39 @@ export default function WalletPage() {
   const submit = async (e) => {
     e.preventDefault()
     setError('')
+    if (isDeposit) {
+      // Manual Telecel Cash deposit: user pays into 0507655475 and submits proof.
+      if (!amount || Number(amount) <= 0) {
+        setError('Enter a valid amount.')
+        return
+      }
+      if (!account.trim()) {
+        setError('Enter your Telecel Cash number.')
+        return
+      }
+      if (!txRef.trim()) {
+        setError('Enter the Telecel Cash transaction reference.')
+        return
+      }
+      setLoading(true)
+      try {
+        const request = await createDepositRequest({
+          amount,
+          senderPhone: account.trim(),
+          txRef: txRef.trim(),
+        })
+        setSubmittedRequest(request)
+        setStage('submitted')
+      } catch (err) {
+        setError(err.message)
+        setStage('form')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    // Withdrawals keep the existing (simulated) flow.
     if (needsApproval && !account.trim()) {
       setError(`Enter the ${activeMethod?.short} number for the push.`)
       return
@@ -127,8 +165,7 @@ export default function WalletPage() {
     setStage('confirming')
     try {
       await new Promise((r) => setTimeout(r, 1600))
-      if (isDeposit) await deposit(amount, { method: activeMethod.short, account: account.trim() })
-      else await withdraw(amount, { method: activeMethod.short, account: account.trim() })
+      await withdraw(amount, { method: activeMethod.short, account: account.trim() })
       await refresh()
       closeModal()
     } catch (err) {
@@ -191,10 +228,28 @@ export default function WalletPage() {
         onClose={closeModal}
         title={isDeposit ? 'Deposit Funds' : 'Withdraw Funds'}
         subtitle={
-          isDeposit ? 'Top up instantly with mobile money, card or bank.' : 'Cash out to your mobile money or bank account.'
+          isDeposit
+            ? 'Send money to our Telecel Cash number and submit your proof of payment.'
+            : 'Cash out to your mobile money or bank account.'
         }
       >
-        {stage === 'confirming' ? (
+        {stage === 'submitted' ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-success/30 bg-success/10 p-4 text-center">
+              <p className="text-sm font-black text-success">Deposit request submitted</p>
+              <p className="mt-1 text-xs text-white/60">
+                Your request for {formatCurrency(submittedRequest?.amount || 0, currency)} is pending verification.
+                It will be credited to your wallet once an admin confirms the payment.
+              </p>
+              <p className="mt-2 text-[11px] text-white/40">
+                Reference: {submittedRequest?.txRef}
+              </p>
+            </div>
+            <Button fullWidth size="lg" onClick={closeModal}>
+              Done
+            </Button>
+          </div>
+        ) : stage === 'confirming' ? (
           <div className="space-y-4">
             <div className="flex flex-col items-center gap-3 py-8 text-center">
               <span className="h-10 w-10 animate-spin rounded-full border-4 border-gold border-t-transparent" />
@@ -213,6 +268,15 @@ export default function WalletPage() {
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-4">
+            {isDeposit && (
+              <div className="rounded-xl border border-gold/30 bg-gold/10 p-4">
+                <p className="text-xs font-bold uppercase tracking-widest text-gold">Pay to (Telecel Cash)</p>
+                <p className="mt-1 text-2xl font-black text-white">{DEPOSIT_NUMBER}</p>
+                <p className="mt-1 text-xs text-white/60">
+                  Send the deposit amount to this number, then fill in the details below so we can verify and credit your wallet.
+                </p>
+              </div>
+            )}
             <Input
               label="Amount"
               type="number"
@@ -237,9 +301,10 @@ export default function WalletPage() {
               ))}
             </div>
 
+            {!isDeposit && (
             <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-white/40">
-                {isDeposit ? 'Payment method' : 'Withdraw to'}
+                Withdraw to
               </p>
               <div className="grid grid-cols-1 gap-2">
                 {PAYMENT_METHODS.filter((m) => (isDeposit ? true : m.type !== 'card')).map((m) => (
@@ -270,8 +335,25 @@ export default function WalletPage() {
                 ))}
               </div>
             </div>
+            )}
 
-            {needsApproval && (
+            {isDeposit ? (
+              <>
+                <Input
+                  label="Your Telecel Cash number"
+                  placeholder="e.g. 054 123 4567"
+                  value={account}
+                  onChange={(e) => setAccount(e.target.value)}
+                  inputMode="tel"
+                />
+                <Input
+                  label="Telecel transaction reference"
+                  placeholder="e.g. 1234567890"
+                  value={txRef}
+                  onChange={(e) => setTxRef(e.target.value)}
+                />
+              </>
+            ) : needsApproval ? (
               <Input
                 label={activeMethod?.type === 'momo' ? `${activeMethod.short} number` : 'Card number'}
                 placeholder={activeMethod?.type === 'momo' ? 'e.g. 054 123 4567' : '4242 4242 4242 4242'}
@@ -279,7 +361,7 @@ export default function WalletPage() {
                 onChange={(e) => setAccount(e.target.value)}
                 inputMode={activeMethod?.type === 'momo' ? 'tel' : 'numeric'}
               />
-            )}
+            ) : null}
 
             {error && (
               <p className="rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
@@ -297,7 +379,7 @@ export default function WalletPage() {
             >
               {isDeposit ? (
                 <>
-                  <ArrowDownToLine className="h-4 w-4" /> Deposit {formatCurrency(Number(amount) || 0, currency)}
+                  <ArrowDownToLine className="h-4 w-4" /> Submit deposit request
                 </>
               ) : (
                 <>

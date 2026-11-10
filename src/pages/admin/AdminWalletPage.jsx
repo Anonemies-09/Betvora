@@ -1,10 +1,15 @@
-import { useState } from 'react'
-import { Landmark, TrendingDown, TrendingUp, Trophy } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Landmark, TrendingDown, TrendingUp, Trophy, Check, X } from 'lucide-react'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import EmptyState from '../../components/common/EmptyState'
 import { useWallet } from '../../context/WalletContext'
 import { formatCurrency, formatDate } from '../../utils/format'
+import {
+  getDepositRequests,
+  approveDepositRequest,
+  rejectDepositRequest,
+} from '../../services/depositService'
 import { cn } from '../../utils/cn'
 
 const TYPE_META = {
@@ -18,6 +23,34 @@ const TYPE_META = {
 export default function AdminWalletPage() {
   const { balance, currency, transactions, refresh } = useWallet()
   const [filter, setFilter] = useState('all')
+  const [requests, setRequests] = useState([])
+  const [working, setWorking] = useState(null)
+
+  const loadRequests = () => setRequests(getDepositRequests())
+  useEffect(() => {
+    loadRequests()
+  }, [])
+
+  const handleApprove = async (id) => {
+    setWorking(id)
+    try {
+      await approveDepositRequest(id)
+      await refresh()
+      loadRequests()
+    } finally {
+      setWorking(null)
+    }
+  }
+
+  const handleReject = async (id) => {
+    setWorking(id)
+    try {
+      await rejectDepositRequest(id, 'Not verified')
+      loadRequests()
+    } finally {
+      setWorking(null)
+    }
+  }
 
   const types = ['all', ...new Set(transactions.map((t) => t.type))]
   const filtered = filter === 'all' ? transactions : transactions.filter((t) => t.type === filter)
@@ -50,6 +83,36 @@ export default function AdminWalletPage() {
           <p className="mt-0.5 text-xs uppercase tracking-wide text-white/40">Money out</p>
         </Card>
       </div>
+
+      <Card className="p-4">
+        <h2 className="text-sm font-black uppercase tracking-widest text-white/60">Pending Telecel Cash deposits</h2>
+        {requests.filter((r) => r.status === 'pending').length === 0 ? (
+          <p className="mt-2 text-xs text-white/40">No pending deposit requests.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {requests
+              .filter((r) => r.status === 'pending')
+              .map((r) => (
+                <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-navy-800 px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-white">{formatCurrency(r.amount, currency)}</p>
+                    <p className="text-[11px] text-white/40">
+                      From {r.senderPhone} �?� Ref {r.txRef}
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="primary" loading={working === r.id} onClick={() => handleApprove(r.id)}>
+                      <Check className="h-3.5 w-3.5" /> Approve
+                    </Button>
+                    <Button size="sm" variant="secondary" loading={working === r.id} onClick={() => handleReject(r.id)}>
+                      <X className="h-3.5 w-3.5" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
