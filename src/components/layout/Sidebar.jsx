@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { Home, Radio, Zap, Flame, Shield } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { SPORTS, LEAGUES } from '../../data/demoData'
+import { SPORTS, LEAGUES } from '../../data/catalogue'
 import { cn } from '../../utils/cn'
 import { flagEmoji } from '../../utils/format'
 

@@ -27,7 +27,7 @@ import {
 } from '../../services/matchService'
 import { settleBetsForMatch } from '../../services/betService'
 import { isAutoFeedEnabled, setAutoFeedEnabled, autoScheduleFixtures } from '../../services/fixtureService'
-import { LEAGUES } from '../../data/demoData'
+import { LEAGUES } from '../../data/catalogue'
 import { formatDate, formatTime, formatOdds, flagEmoji } from '../../utils/format'
 import { cn } from '../../utils/cn'
 

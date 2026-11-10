@@ -2,7 +2,7 @@ import Card from '../common/Card'
 import Badge from '../common/Badge'
 import OddsButton from './OddsButton'
 import TeamCrest from './TeamCrest'
-import { LEAGUES } from '../../data/demoData'
+import { LEAGUES } from '../../data/catalogue'
 import { formatTime, flagEmoji } from '../../utils/format'
 import { cn } from '../../utils/cn'
 

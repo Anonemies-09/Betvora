@@ -4,7 +4,7 @@ import Button from '../../components/common/Button'
 import Logo from '../../components/common/Logo'
 import Badge from '../../components/common/Badge'
 import TeamCrest from '../../components/sports/TeamCrest'
-import { SPORTS, LEAGUES } from '../../data/demoData'
+import { SPORTS, LEAGUES } from '../../data/catalogue'
 import { useCatalogue } from '../../hooks/useCatalogue'
 import { formatTime, formatOdds, flagEmoji } from '../../utils/format'
 

@@ -7,7 +7,7 @@ import Tabs from '../../components/common/Tabs'
 import EmptyState from '../../components/common/EmptyState'
 import BetSlipCard from '../../components/betting/BetSlipCard'
 import AdSlot from '../../components/common/AdSlot'
-import { SPORTS, LEAGUES, MORE_SPORT_IDS } from '../../data/demoData'
+import { SPORTS, LEAGUES, MORE_SPORT_IDS } from '../../data/catalogue'
 import { useCatalogue } from '../../hooks/useCatalogue'
 import { CircleDot } from 'lucide-react'
 
