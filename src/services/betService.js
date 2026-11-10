@@ -37,7 +37,7 @@ function computeTotalOdds(selections) {
   return selections.reduce((acc, s) => acc * Number(s.odds), 1)
 }
 
-export async function placeBet({ selections, stake }) {
+export async function placeBet({ selections, stake, userId }) {
   await delay()
   if (!selections || selections.length === 0) {
     throw new Error('Add at least one selection to your bet slip.')
@@ -46,11 +46,12 @@ export async function placeBet({ selections, stake }) {
   if (!value || value <= 0) {
     throw new Error('Enter a valid stake.')
   }
+  const uid = userId || currentUserId()
   const totalOdds = computeTotalOdds(selections)
   const bets = readBets()
   const bet = {
     id: String(10000 + bets.length + 1),
-    userId: currentUserId(),
+    userId: uid,
     type: selections.length === 1 ? 'single' : 'multiple',
     status: 'pending',
     stake: value,
@@ -69,7 +70,7 @@ export async function placeBet({ selections, stake }) {
   }
   bets.unshift(bet)
   persist(bets)
-  await deductForBet(value, `Bet placed — #BV${bet.id}`, bet.userId)
+  await deductForBet(value, `Bet placed — #BV${bet.id}`, uid)
   createNotification({ type: 'bet', title: 'Bet placed', text: `Your bet #BV${bet.id} has been placed successfully.` })
   return bet
 }
