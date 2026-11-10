@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Radio, Zap, Flame } from 'lucide-react'
+import { Home, Radio, Zap, Flame, Shield } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 import { SPORTS, LEAGUES } from '../../data/demoData'
 import { cn } from '../../utils/cn'
 import { flagEmoji } from '../../utils/format'
@@ -19,7 +20,9 @@ function SectionTitle({ children }) {
 }
 
 export default function Sidebar() {
+  const { user } = useAuth()
   const topLeagues = LEAGUES.filter((l) => l.popular)
+  const isStaff = user?.role === 'admin' || user?.role === 'agent'
   return (
     <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-72 shrink-0 overflow-y-auto border-r border-white/5 bg-navy-800/40 p-4 no-scrollbar lg:block">
       <div className="space-y-6">
@@ -41,6 +44,20 @@ export default function Sidebar() {
                 {link.label}
               </NavLink>
             ))}
+            {isStaff && (
+              <NavLink
+                to="/admin"
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
+                    isActive ? 'bg-gold/10 text-gold' : 'text-white/60 hover:bg-white/5 hover:text-white',
+                  )
+                }
+              >
+                <Shield className="h-4.5 w-4.5" />
+                Admin Console
+              </NavLink>
+            )}
           </nav>
         </div>
 

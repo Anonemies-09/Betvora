@@ -24,8 +24,12 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(form)
-      navigate(from, { replace: true })
+      const loggedIn = await login(form)
+      if (loggedIn?.role === 'admin' || loggedIn?.role === 'agent') {
+        navigate('/admin', { replace: true })
+      } else {
+        navigate(from, { replace: true })
+      }
     } catch (err) {
       setError(err.message)
     } finally {
