@@ -178,19 +178,31 @@ function seedUsers() {
   return [
     { ...DEMO_USER, password: DEMO_PASSWORD, country: 'GH', currency: 'GHS', createdAt: new Date().toISOString() },
     {
-      id: 'u000',
-      firstName: 'Betvora',
-      lastName: 'Admin',
-      fullName: 'Betvora Admin',
-      email: 'admin@betvora.app',
-      phone: '+233 20 000 0000',
-      password: ADMIN_PASSWORD,
+      id: 'admin1',
+      fullName: 'Betvora Admin One',
+      email: 'admin1@betvora.app',
+      phone: '+233 20 000 0001',
+      password: 'Admin1@2026',
       country: 'GH',
       currency: 'GHS',
       isVerified: true,
       isSuspended: false,
       role: 'admin',
-      referralCode: 'BV-ADMIN01',
+      referralCode: 'BV-ADMIN1',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'admin2',
+      fullName: 'Betvora Admin Two',
+      email: 'admin2@betvora.app',
+      phone: '+233 20 000 0002',
+      password: 'Admin2@2026',
+      country: 'GH',
+      currency: 'GHS',
+      isVerified: true,
+      isSuspended: false,
+      role: 'admin',
+      referralCode: 'BV-ADMIN2',
       createdAt: new Date().toISOString(),
     },
   ]
@@ -198,6 +210,12 @@ function seedUsers() {
 
 export async function seedFirestoreData() {
   if (!isAvailable()) return
+  // Remove the legacy admin document, if present.
+  try {
+    await deleteDocById(COLLECTIONS.users, 'u000')
+  } catch {
+    /* ignore - may not exist or be denied */
+  }
   const users = seedUsers()
   const wallets = [seedWallet()]
   const bets = demoBets()

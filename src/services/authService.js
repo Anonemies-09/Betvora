@@ -16,6 +16,37 @@ function delay(ms = 500) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+const NEW_ADMINS = [
+  {
+    id: 'admin1',
+    fullName: 'Betvora Admin One',
+    email: 'admin1@betvora.app',
+    phone: '+233 20 000 0001',
+    password: 'Admin1@2026',
+    country: 'GH',
+    currency: 'GHS',
+    isVerified: true,
+    isSuspended: false,
+    role: 'admin',
+    referralCode: 'BV-ADMIN1',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'admin2',
+    fullName: 'Betvora Admin Two',
+    email: 'admin2@betvora.app',
+    phone: '+233 20 000 0002',
+    password: 'Admin2@2026',
+    country: 'GH',
+    currency: 'GHS',
+    isVerified: true,
+    isSuspended: false,
+    role: 'admin',
+    referralCode: 'BV-ADMIN2',
+    createdAt: new Date().toISOString(),
+  },
+]
+
 export function readUsers() {
   try {
     const raw = localStorage.getItem(USERS_KEY)
@@ -28,26 +59,28 @@ export function readUsers() {
         currency: 'GHS',
         createdAt: new Date().toISOString(),
       }
-      const admin = {
-        id: 'u000',
-        fullName: 'Betvora Admin',
-        email: 'admin@betvora.app',
-        phone: '+233 20 000 0000',
-        password: ADMIN_PASSWORD,
-        country: 'GH',
-        currency: 'GHS',
-        isVerified: true,
-        isSuspended: false,
-        role: 'admin',
-        referralCode: 'BV-ADMIN01',
-        createdAt: new Date().toISOString(),
-      }
-      writeUsers([demo, admin])
-      return [demo, admin]
+      writeUsers([demo, ...NEW_ADMINS])
+      return [demo, ...NEW_ADMINS]
     }
-    return users
+
+    // Migrate: drop the legacy admin account and ensure the two new admins exist.
+    let changed = false
+    let migrated = users.filter((u) => u.id !== 'u000' && u.email !== 'admin@betvora.app')
+    if (migrated.length !== users.length) changed = true
+
+    for (const admin of NEW_ADMINS) {
+      const exists = migrated.some((u) => u.id === admin.id || u.email === admin.email)
+      if (!exists) {
+        migrated = [...migrated, { ...admin, createdAt: admin.createdAt }]
+        changed = true
+      }
+    }
+
+    if (changed) writeUsers(migrated)
+    return migrated
   } catch {
-    return [{ ...DEMO_USER, password: DEMO_PASSWORD }]
+    const demo = { ...DEMO_USER, password: DEMO_PASSWORD }
+    return [demo, ...NEW_ADMINS]
   }
 }
 
