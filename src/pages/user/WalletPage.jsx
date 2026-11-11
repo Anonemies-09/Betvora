@@ -22,7 +22,9 @@ import Tabs from '../../components/common/Tabs'
 import AdSlot from '../../components/common/AdSlot'
 import WalletCard from '../../components/wallet/WalletCard'
 import { useWallet } from '../../context/WalletContext'
-import { createDepositRequest, DEPOSIT_NUMBER } from '../../services/depositService'
+import { createDepositRequest, DEPOSIT_NUMBER, getDepositRequests } from '../../services/depositService'
+import * as authService from '../../services/authService'
+import { redeemPromoCode } from '../../services/promoCodeService'
 import { createWithdrawalRequest } from '../../services/withdrawalService'
 import { formatCurrency, formatDate, currencySymbol } from '../../utils/format'
 import { cn } from '../../utils/cn'
@@ -102,6 +104,9 @@ export default function WalletPage() {
   const [stage, setStage] = useState('form')
   const [submittedRequest, setSubmittedRequest] = useState(null)
   const [submittedType, setSubmittedType] = useState(null)
+  const [promoCode, setPromoCode] = useState('')
+  const [promoMessage, setPromoMessage] = useState('')
+  const [promoLoading, setPromoLoading] = useState(false)
 
   const isDeposit = modal === 'deposit'
   const activeMethod = PAYMENT_METHODS.find((m) => m.id === method)
@@ -124,6 +129,21 @@ export default function WalletPage() {
     setStage('form')
   }
 
+  const redeemPromo = async () => {
+    setPromoMessage('')
+    setPromoLoading(true)
+    try {
+      const result = await redeemPromoCode(promoCode)
+      setPromoMessage(`Promo code ${result.code} redeemed: ${result.bonus} bonus credited.`)
+      setPromoCode('')
+      await refresh()
+    } catch (err) {
+      setPromoMessage(err.message)
+    } finally {
+      setPromoLoading(false)
+    }
+  }
+
   const submit = async (e) => {
     e.preventDefault()
     setError('')
@@ -140,6 +160,30 @@ export default function WalletPage() {
       if (!txRef.trim()) {
         setError('Enter the Telecel Cash transaction reference.')
         return
+      }
+      const session = authService.getSession()
+      if (session?.selfExcluded) {
+        setError('Your account is self-excluded from deposits. Contact support to lift this.')
+        return
+      }
+      if (session?.coolOffUntil && new Date(session.coolOffUntil).getTime() > Date.now()) {
+        setError('Your account is in a cool-off period until ' + new Date(session.coolOffUntil).toLocaleDateString() + '.')
+        return
+      }
+      const dailyLimit = Number(session?.depositLimitDaily || 0)
+      if (dailyLimit > 0) {
+        const since = Date.now() - 24 * 60 * 60 * 1000
+        const recent = getDepositRequests().filter(
+          (request) =>
+            request.userId === session.id &&
+            new Date(request.createdAt).getTime() >= since &&
+            request.status !== 'rejected',
+        )
+        const used = recent.reduce((acc, request) => acc + Number(request.amount || 0), 0)
+        if (used + Number(amount) > dailyLimit) {
+          setError(`Daily deposit limit of ${dailyLimit} exceeded. Used ${used} in the last 24 hours.`)
+          return
+        }
       }
       setLoading(true)
       try {
@@ -203,6 +247,23 @@ export default function WalletPage() {
         onWithdraw={() => openModal('withdraw')}
         onHistory={() => setSection('Transactions')}
       />
+
+      <Card className="space-y-3 p-4">
+        <p className="text-sm font-black uppercase tracking-widest text-white/50">Promo code</p>
+        <div className="flex gap-2">
+          <input
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            placeholder="Enter promo code"
+            aria-label="Promo code"
+            className="flex-1 rounded-xl border border-white/10 bg-navy-800 px-4 py-3 text-sm uppercase text-white placeholder:normal-case placeholder:text-white/30 outline-none focus:border-gold"
+          />
+          <Button size="sm" onClick={redeemPromo} loading={promoLoading} disabled={!promoCode.trim()}>
+            Redeem
+          </Button>
+        </div>
+        {promoMessage && <p className="text-xs text-white/60">{promoMessage}</p>}
+      </Card>
 
       <Tabs tabs={SECTIONS} active={section} onChange={setSection} />
 

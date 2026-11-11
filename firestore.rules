@@ -132,6 +132,18 @@ service cloud.firestore {
         && (isOwner(resource.data.userId) || isStaff());
     }
 
+    // --------------------------------------------------------- promo codes
+    match /promoCodes/{codeId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // --------------------------------------------------- promo redemptions
+    match /promoRedemptions/{redemptionId} {
+      allow read: if signedIn() && (isOwner(resource.data.userId) || isAdmin());
+      allow create: if signedIn() && isOwner(request.resource.data.userId);
+    }
+
     // ------------------------------------------------------- booking codes
     // A code stores selections only (no stake, no locked odds). Any signed-in
     // player can load a shared code, but only its creator or staff can change

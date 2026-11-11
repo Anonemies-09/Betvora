@@ -292,6 +292,17 @@ export async function creditGameWinnings(amount, note, userId) {
   return wallet
 }
 
+export async function creditBonus(amount, note, userId) {
+  await delay(120)
+  const value = Number(amount)
+  const uid = userId || getCurrentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
+  const wallet = readWallet(uid)
+  wallet.bonusBalance = Number(wallet.bonusBalance || 0) + value
+  pushTransaction(wallet, { type: 'bonus', amount: value, note })
+  await commitWallet(uid, wallet)
+  return wallet
+}
 export async function refundStake(amount, note, userId) {
   await delay(120)
   const value = Number(amount)

@@ -714,6 +714,11 @@ const EDITABLE_PROFILE_FIELDS = [
   'avatar',
   'bankAccounts',
   'preferences',
+  'depositLimitDaily',
+  'depositLimitWeekly',
+  'selfExcluded',
+  'coolOffUntil',
+  'bonusBalance',
 ]
 
 export async function updateProfile(userId, updates) {

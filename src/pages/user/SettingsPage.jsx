@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Settings as SettingsIcon, Bell, Wallet, ShieldCheck, Megaphone, Sun, Moon } from 'lucide-react'
 import Card from '../../components/common/Card'
+import Button from '../../components/common/Button'
 import { useWallet } from '../../context/WalletContext'
 import { useTheme } from '../../context/ThemeContext'
+import * as authService from '../../services/authService'
 import { getAdConsent, setAdConsent } from '../../services/adsService'
 import { requestNotificationPermission } from '../../services/notificationService'
 import { CURRENCIES } from '../../data/countries'
@@ -64,6 +66,9 @@ export default function SettingsPage() {
       personalized: Boolean(consent && consent.granted === true && consent.personalized === true),
     }
   })
+  const [rg, setRg] = useState({ depositLimitDaily: '', selfExcluded: false })
+  const [rgSaving, setRgSaving] = useState(false)
+  const [rgMessage, setRgMessage] = useState('')
 
   useEffect(() => {
     try {
@@ -72,6 +77,15 @@ export default function SettingsPage() {
     } catch {
       /* defaults */
     }
+  }, [])
+
+  useEffect(() => {
+    const session = authService.getSession()
+    if (!session) return
+    setRg({
+      depositLimitDaily: session.depositLimitDaily ? String(session.depositLimitDaily) : '',
+      selfExcluded: Boolean(session.selfExcluded),
+    })
   }, [])
 
   const updateAdConsent = (patch) => {
@@ -92,6 +106,24 @@ export default function SettingsPage() {
       await setCurrency(value)
     } catch {
       /* ignore */
+    }
+  }
+
+  const saveResponsibleGambling = async () => {
+    const session = authService.getSession()
+    if (!session?.id) return
+    setRgSaving(true)
+    setRgMessage('')
+    try {
+      await authService.updateProfile(session.id, {
+        depositLimitDaily: rg.depositLimitDaily ? Number(rg.depositLimitDaily) : 0,
+        selfExcluded: rg.selfExcluded,
+      })
+      setRgMessage('Responsible gambling settings saved.')
+    } catch (err) {
+      setRgMessage(err.message)
+    } finally {
+      setRgSaving(false)
     }
   }
 
@@ -221,6 +253,41 @@ export default function SettingsPage() {
           disabled={!adConsent.granted}
           description={adConsent.personalized ? 'Ads matched to your activity.' : 'Off — only non-personalized ads will serve.'}
         />
+      </Card>
+
+      <Card className="space-y-4 p-4">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-white/50">
+            <ShieldCheck className="h-4 w-4 text-gold" />
+            Responsible gambling
+          </p>
+          <p className="mt-1 text-xs text-white/40">
+            Set a daily deposit limit or self-exclude. Self-exclusion blocks all deposits.
+          </p>
+        </div>
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-semibold text-white/70">Daily deposit limit (0 = none)</span>
+          <input
+            type="number"
+            min="0"
+            value={rg.depositLimitDaily}
+            onChange={(e) => setRg((current) => ({ ...current, depositLimitDaily: e.target.value }))}
+            className="w-full rounded-xl border border-white/10 bg-navy-800 px-4 py-3 text-sm text-white outline-none focus:border-gold"
+          />
+        </label>
+        <label className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={rg.selfExcluded}
+            onChange={(e) => setRg((current) => ({ ...current, selfExcluded: e.target.checked }))}
+            className="h-4 w-4 rounded border-white/20 bg-navy-800 text-gold"
+          />
+          <span className="text-sm font-bold text-white">Self-exclude from deposits</span>
+        </label>
+        <Button size="sm" onClick={saveResponsibleGambling} loading={rgSaving}>
+          Save responsible gambling settings
+        </Button>
+        {rgMessage && <p className="text-xs text-white/60">{rgMessage}</p>}
       </Card>
 
       <Card className="flex items-center gap-3 p-4">

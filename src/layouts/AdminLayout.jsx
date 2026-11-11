@@ -21,6 +21,7 @@ const ADMIN_LINKS = [
   { to: '/admin/bets', label: 'Bets', icon: ReceiptText, staff: true },
   { to: '/admin/wallet', label: 'Wallet & Transactions', icon: Wallet, staff: true },
   { to: '/admin/promotions', label: 'Promotions', icon: Megaphone, adminOnly: true },
+{ to: '/admin/promo-codes', label: 'Promo Codes', icon: Megaphone, adminOnly: true },
   { to: '/admin/banners', label: 'Banners', icon: Sparkles, adminOnly: true },
 { to: '/admin/reports', label: 'Reports', icon: Sparkles, adminOnly: true },
 ]

@@ -48,6 +48,7 @@ import AdminBetsPage from './pages/admin/AdminBetsPage'
 import AdminReportsPage from './pages/admin/AdminReportsPage'
 import AdminWalletPage from './pages/admin/AdminWalletPage'
 import AdminPromotionsPage from './pages/admin/AdminPromotionsPage'
+import AdminPromoCodesPage from './pages/admin/AdminPromoCodesPage'
 import AdminBannersPage from './pages/admin/AdminBannersPage'
 import { AdminRedirect } from './pages/admin/AdminPlaceholder'
 import NotFound from './pages/NotFound'
@@ -147,6 +148,7 @@ function App() {
 <Route path="/admin/reports" element={<ProtectedRoute adminOnly><AdminReportsPage /></ProtectedRoute>} />
           <Route path="/admin/wallet" element={<AdminWalletPage />} />
           <Route path="/admin/promotions" element={<ProtectedRoute adminOnly><AdminPromotionsPage /></ProtectedRoute>} />
+<Route path="/admin/promo-codes" element={<ProtectedRoute adminOnly><AdminPromoCodesPage /></ProtectedRoute>} />
           <Route path="/admin/banners" element={<ProtectedRoute adminOnly><AdminBannersPage /></ProtectedRoute>} />
           <Route path="/admin/*" element={<AdminRedirect />} />
         </Route>

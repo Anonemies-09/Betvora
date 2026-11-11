@@ -22,6 +22,8 @@ export const CLOUD = {
   promotions: 'promotions',
   banners: 'banners',
   bookingCodes: 'bookingCodes',
+  promoCodes: 'promoCodes',
+  promoRedemptions: 'promoRedemptions',
 }
 
 export const LOCAL = {
@@ -35,6 +37,8 @@ export const LOCAL = {
   promotions: 'betvora_promotions',
   banners: 'betvora_banners',
   bookingCodes: 'betvora_booking_codes',
+  promoCodes: 'betvora_promo_codes',
+  promoRedemptions: 'betvora_promo_redemptions',
 }
 
 const WRITE_TIMEOUT = 20000
