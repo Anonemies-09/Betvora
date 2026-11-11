@@ -116,23 +116,37 @@ export default function AdminLayout() {
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex justify-around border-t border-white/5 bg-navy/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
-        {ADMIN_LINKS.map((link) => (
+      <nav className="fixed inset-x-0 bottom-0 z-40 overflow-x-auto border-t border-white/5 bg-navy/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+        <div className="flex min-w-max items-stretch gap-1 px-2">
           <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.end}
+            to="/home"
             className={({ isActive }) =>
               cn(
-                'flex flex-1 flex-col items-center gap-1 py-2.5 text-[9px] font-semibold',
+                'flex shrink-0 flex-col items-center gap-1 px-3 py-2.5 text-[9px] font-semibold whitespace-nowrap',
                 isActive ? 'text-gold' : 'text-white/45',
               )
             }
           >
-            <link.icon className="h-5 w-5" />
-            {link.label}
+            <Home className="h-5 w-5" />
+            Main Site
           </NavLink>
-        ))}
+          {ADMIN_LINKS.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              end={link.end}
+              className={({ isActive }) =>
+                cn(
+                  'flex shrink-0 flex-col items-center gap-1 px-3 py-2.5 text-[9px] font-semibold whitespace-nowrap',
+                  isActive ? 'text-gold' : 'text-white/45',
+                )
+              }
+            >
+              <link.icon className="h-5 w-5" />
+              {link.label}
+            </NavLink>
+          ))}
+        </div>
       </nav>
     </div>
   )
