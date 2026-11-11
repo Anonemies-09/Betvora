@@ -9,7 +9,7 @@ export default function UserLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen flex-col bg-navy">
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-navy">
       <TopHeader onOpenMenu={() => setMenuOpen(true)} />
 
       <div className="mx-auto flex w-full max-w-7xl flex-1">
@@ -28,7 +28,7 @@ export default function UserLayout() {
             onClick={() => setMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-y-0 left-0 w-80 overflow-y-auto border-r border-white/10 bg-navy p-4">
+          <div className="absolute inset-y-0 left-0 w-[85vw] max-w-80 overflow-y-auto overflow-x-hidden border-r border-white/10 bg-navy p-4">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-sm font-bold uppercase tracking-widest text-white/50">
                 Menu
