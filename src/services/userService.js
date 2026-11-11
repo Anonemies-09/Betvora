@@ -87,6 +87,23 @@ export async function setUserSuspended(userId, suspended) {
   return saveUser(user)
 }
 
+export async function updateUser(userId, updates) {
+  await delay()
+  const users = readUsers()
+  const index = users.findIndex((u) => u.id === userId)
+  if (index === -1) throw new Error('User not found.')
+  const allowed = ['fullName', 'firstName', 'lastName', 'phone', 'country', 'currency', 'isVerified', 'isSuspended', 'role']
+  for (const field of allowed) {
+    if (updates[field] !== undefined) users[index][field] = updates[field]
+  }
+  if (updates.fullName && !updates.firstName) {
+    const parts = String(updates.fullName).trim().split(/\s+/)
+    users[index].firstName = parts[0] || ''
+    users[index].lastName = parts.slice(1).join(' ') || ''
+  }
+  const saved = await saveUser(users[index])
+  return saved
+}
 export async function setUserRole(userId, role) {
   await delay()
   const users = readUsers()

@@ -5,7 +5,8 @@ import Badge from '../../components/common/Badge'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import EmptyState from '../../components/common/EmptyState'
-import { getAllUsers, setUserVerified, setUserSuspended, setUserRole, deleteUser, createUser } from '../../services/userService'
+import { getAllUsers, setUserVerified, setUserSuspended, setUserRole, deleteUser, createUser, updateUser } from '../../services/userService'
+import * as authService from '../../services/authService'
 import * as walletService from '../../services/walletService'
 import { pullStaffData } from '../../services/cloudSync'
 import Modal from '../../components/common/Modal'
@@ -21,10 +22,15 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [agentModal, setAgentModal] = useState(false)
-  const [agentForm, setAgentForm] = useState({ fullName: '', email: '', phone: '', password: '' })
-  const [agentError, setAgentError] = useState('')
-  const [agentLoading, setAgentLoading] = useState(false)
+  const [createModal, setCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({ fullName: '', email: '', phone: '', password: '', role: 'user' })
+  const [createError, setCreateError] = useState('')
+  const [createLoading, setCreateLoading] = useState(false)
+  const [editModal, setEditModal] = useState(null)
+  const [editForm, setEditForm] = useState({ fullName: '', phone: '', role: 'user', isVerified: true, isSuspended: false })
+  const [editError, setEditError] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
+  const [resetLoading, setResetLoading] = useState(null)
   const [creditModal, setCreditModal] = useState(null)
   const [creditAmount, setCreditAmount] = useState('')
   const [creditLoading, setCreditLoading] = useState(false)
@@ -67,29 +73,76 @@ export default function AdminUsersPage() {
     load()
   }
 
-  const createAgent = async (e) => {
+  const createUserAccount = async (e) => {
     e.preventDefault()
-    setAgentError('')
-    if (!agentForm.fullName.trim() || !agentForm.email.trim() || !agentForm.password.trim()) {
-      setAgentError('Name, email and password are required.')
+    setCreateError('')
+    if (!createForm.fullName.trim() || !createForm.email.trim() || !createForm.password.trim()) {
+      setCreateError('Name, email and password are required.')
       return
     }
-    setAgentLoading(true)
+    setCreateLoading(true)
     try {
       await createUser({
-        fullName: agentForm.fullName.trim(),
-        email: agentForm.email.trim(),
-        phone: agentForm.phone.trim(),
-        password: agentForm.password,
-        role: 'agent',
+        fullName: createForm.fullName.trim(),
+        email: createForm.email.trim(),
+        phone: createForm.phone.trim(),
+        password: createForm.password,
+        role: createForm.role,
       })
-      setAgentModal(false)
-      setAgentForm({ fullName: '', email: '', phone: '', password: '' })
+      setCreateModal(false)
+      setCreateForm({ fullName: '', email: '', phone: '', password: '', role: 'user' })
       load()
     } catch (err) {
-      setAgentError(err.message)
+      setCreateError(err.message)
     } finally {
-      setAgentLoading(false)
+      setCreateLoading(false)
+    }
+  }
+
+  const openEdit = (user) => {
+    setEditModal(user)
+    setEditForm({
+      fullName: user.fullName || '',
+      phone: user.phone || '',
+      role: user.role || 'user',
+      isVerified: Boolean(user.isVerified),
+      isSuspended: Boolean(user.isSuspended),
+    })
+    setEditError('')
+  }
+
+  const saveEdit = async (e) => {
+    e.preventDefault()
+    if (!editModal) return
+    setEditError('')
+    setEditLoading(true)
+    try {
+      await updateUser(editModal.id, {
+        fullName: editForm.fullName.trim(),
+        phone: editForm.phone.trim(),
+        role: editForm.role,
+        isVerified: editForm.isVerified,
+        isSuspended: editForm.isSuspended,
+      })
+      setEditModal(null)
+      load()
+    } catch (err) {
+      setEditError(err.message)
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  const resetPassword = async (user) => {
+    if (!window.confirm(`Send a password reset email to ${user.email}?`)) return
+    setResetLoading(user.id)
+    try {
+      await authService.sendPasswordReset(user.email)
+      window.alert(`Password reset email sent to ${user.email}.`)
+    } catch (err) {
+      window.alert(err.message)
+    } finally {
+      setResetLoading(null)
     }
   }
 
@@ -126,7 +179,7 @@ export default function AdminUsersPage() {
           <Button variant="secondary" onClick={handleSearch}>
             Go
           </Button>
-          <Button onClick={() => setAgentModal(true)}>Create Agent</Button>
+          <Button onClick={() => setCreateModal(true)}>Create User</Button>
         </div>
       </div>
 
@@ -159,6 +212,17 @@ export default function AdminUsersPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <Button size="sm" variant="secondary" onClick={() => openEdit(user)}>
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={resetLoading === user.id}
+                    onClick={() => resetPassword(user)}
+                  >
+                    Reset password
+                  </Button>
                   {user.role !== 'admin' && (
                     <>
                       <Button
@@ -217,15 +281,70 @@ export default function AdminUsersPage() {
         </form>
       </Modal>
 
-      <Modal open={agentModal} onClose={() => setAgentModal(false)} title="Create Agent Account">
-        <form onSubmit={createAgent} className="space-y-4">
-          <Input label="Full Name" value={agentForm.fullName} onChange={(e) => setAgentForm((f) => ({ ...f, fullName: e.target.value }))} />
-          <Input label="Email" type="email" value={agentForm.email} onChange={(e) => setAgentForm((f) => ({ ...f, email: e.target.value }))} />
-          <Input label="Phone" value={agentForm.phone} onChange={(e) => setAgentForm((f) => ({ ...f, phone: e.target.value }))} />
-          <Input label="Password" type="password" value={agentForm.password} onChange={(e) => setAgentForm((f) => ({ ...f, password: e.target.value }))} />
-          {agentError && <p className="text-sm text-danger">{agentError}</p>}
-          <Button type="submit" fullWidth loading={agentLoading}>
-            Create Agent
+      <Modal open={createModal} onClose={() => setCreateModal(false)} title="Create User Account">
+        <form onSubmit={createUserAccount} className="space-y-4">
+          <Input label="Full Name" value={createForm.fullName} onChange={(e) => setCreateForm((f) => ({ ...f, fullName: e.target.value }))} />
+          <Input label="Email" type="email" value={createForm.email} onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))} />
+          <Input label="Phone" value={createForm.phone} onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))} />
+          <Input label="Password" type="password" value={createForm.password} onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))} />
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/40">Role</p>
+            <select
+              value={createForm.role}
+              onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value }))}
+              className="w-full rounded-xl border border-white/10 bg-navy-800 px-4 py-3 text-sm text-white outline-none focus:border-gold"
+            >
+              <option value="user">User</option>
+              <option value="agent">Agent</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          {createError && <p className="text-sm text-danger">{createError}</p>}
+          <Button type="submit" fullWidth loading={createLoading}>
+            Create User
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal open={Boolean(editModal)} onClose={() => setEditModal(null)} title="Edit User">
+        <form onSubmit={saveEdit} className="space-y-4">
+          <p className="text-sm text-white/60">{editModal?.email}</p>
+          <Input label="Full Name" value={editForm.fullName} onChange={(e) => setEditForm((f) => ({ ...f, fullName: e.target.value }))} />
+          <Input label="Phone" value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/40">Role</p>
+            <select
+              value={editForm.role}
+              onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value }))}
+              className="w-full rounded-xl border border-white/10 bg-navy-800 px-4 py-3 text-sm text-white outline-none focus:border-gold"
+              disabled={editModal?.role === 'admin'}
+            >
+              <option value="user">User</option>
+              <option value="agent">Agent</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={editForm.isVerified}
+              onChange={(e) => setEditForm((f) => ({ ...f, isVerified: e.target.checked }))}
+              className="h-4 w-4 rounded border-white/20 bg-navy-800 text-gold"
+            />
+            <span className="text-sm font-bold text-white">Verified</span>
+          </label>
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={editForm.isSuspended}
+              onChange={(e) => setEditForm((f) => ({ ...f, isSuspended: e.target.checked }))}
+              className="h-4 w-4 rounded border-white/20 bg-navy-800 text-gold"
+            />
+            <span className="text-sm font-bold text-white">Suspended</span>
+          </label>
+          {editError && <p className="text-sm text-danger">{editError}</p>}
+          <Button type="submit" fullWidth loading={editLoading}>
+            Save changes
           </Button>
         </form>
       </Modal>

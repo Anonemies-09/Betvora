@@ -743,6 +743,15 @@ export async function updateProfile(userId, updates) {
   return clean
 }
 
+export async function sendPasswordReset(email) {
+  if (!isFirebaseConfigured) return false
+  const normalized = String(email || '').trim().toLowerCase()
+  if (!normalized) throw new Error('Email is required.')
+  const { auth } = await ensureFirebase()
+  const { sendPasswordResetEmail } = await import('firebase/auth')
+  await sendPasswordResetEmail(auth, normalized)
+  return true
+}
 export async function changePassword(userId, { currentPassword, newPassword }) {
   await delay(250)
   const users = readUsers()
