@@ -19,6 +19,7 @@ const ADMIN_LINKS = [
   { to: '/admin/users', label: 'Users', icon: Users, adminOnly: true },
   { to: '/admin/sports', label: 'Sports & Matches', icon: Trophy, staff: true },
   { to: '/admin/bets', label: 'Bets', icon: ReceiptText, staff: true },
+{ to: '/admin/aviator', label: 'Aviator', icon: ReceiptText, adminOnly: true },
   { to: '/admin/wallet', label: 'Wallet & Transactions', icon: Wallet, staff: true },
   { to: '/admin/promotions', label: 'Promotions', icon: Megaphone, adminOnly: true },
 { to: '/admin/promo-codes', label: 'Promo Codes', icon: Megaphone, adminOnly: true },

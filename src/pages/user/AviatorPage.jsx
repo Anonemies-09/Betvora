@@ -21,6 +21,7 @@ import {
   saveAviatorRound,
   saveAviatorSettings,
 } from '../../utils/aviator'
+import { fetchAviatorGlobalSettings } from '../../services/aviatorSettingsService'
 import { cn } from '../../utils/cn'
 
 const WAIT_SECONDS = 6
@@ -196,6 +197,15 @@ export default function AviatorPage() {
   const { user } = useAuth()
   const { balance, currency, refresh } = useWallet()
   const [initialSettings] = useState(() => readAviatorSettings(user?.id))
+  const [aviatorSettings, setAviatorSettings] = useState(null)
+
+  useEffect(() => {
+    fetchAviatorGlobalSettings().then(setAviatorSettings)
+    const interval = setInterval(() => {
+      fetchAviatorGlobalSettings().then(setAviatorSettings)
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const [phase, setPhase] = useState('waiting')
   const [countdown, setCountdown] = useState(WAIT_SECONDS)
@@ -289,11 +299,22 @@ export default function AviatorPage() {
 
   function beginRound() {
     if (roundRef.current && !roundRef.current.ended) return
+    const settings = aviatorSettings || { enabled: true, minStake: MIN_STAKE, maxStake: MAX_STAKE, houseEdge: 1, growthRate: 0.14, forceCrash: null, maxMultiplier: 1000 }
+    if (!settings.enabled) {
+      startWaiting()
+      return
+    }
     const roundSeed = randomSeed()
-    const roundCrash = crashPointFromSeed(roundSeed)
+    let roundCrash = crashPointFromSeed(roundSeed)
+    if (settings.forceCrash != null && Number.isFinite(settings.forceCrash) && settings.forceCrash >= 1) {
+      roundCrash = settings.forceCrash
+    }
+    if (Math.random() * 100 < Number(settings.houseEdge || 0)) roundCrash = 1
+    roundCrash = Math.min(Number(settings.maxMultiplier || 1000), roundCrash)
+    const rate = Number(settings.growthRate || 0.14)
     const target = Number(autoCashout)
     const auto = Number.isFinite(target) && target >= 1.01 ? target : null
-    const activeStake = betQueued ? stake : 0
+    const activeStake = betQueued ? Math.min(Math.max(stake, settings.minStake), settings.maxStake) : 0
 
     setError('')
     setSeed(roundSeed)
@@ -315,6 +336,7 @@ export default function AviatorPage() {
       cashedAt: null,
       ended: false,
       funded: activeStake === 0,
+      rate,
       startedAt: performance.now(),
     }
     multRef.current = 1
@@ -345,7 +367,7 @@ export default function AviatorPage() {
     const round = roundRef.current
     if (!round || round.ended) return
     const elapsed = performance.now() - round.startedAt
-    const live = multiplierAt(elapsed)
+    const live = multiplierAt(elapsed, round.rate || 0.14)
     const shown = Math.min(live, round.crashAt)
     multRef.current = shown
     setMult(shown)
@@ -428,12 +450,15 @@ export default function AviatorPage() {
       return
     }
     const value = Number(stake)
-    if (!Number.isFinite(value) || value < MIN_STAKE) {
-      setError(`Minimum stake is ${formatCurrency(MIN_STAKE, currency)}.`)
+    const settings = aviatorSettings || { minStake: MIN_STAKE, maxStake: MAX_STAKE }
+    const minStake = Number(settings.minStake || MIN_STAKE)
+    const maxStake = Number(settings.maxStake || MAX_STAKE)
+    if (!Number.isFinite(value) || value < minStake) {
+      setError(`Minimum stake is ${formatCurrency(minStake, currency)}.`)
       return
     }
-    if (value > MAX_STAKE) {
-      setError(`Maximum stake is ${formatCurrency(MAX_STAKE, currency)}.`)
+    if (value > maxStake) {
+      setError(`Maximum stake is ${formatCurrency(maxStake, currency)}.`)
       return
     }
     if (value > balance) {
