@@ -48,6 +48,7 @@ service cloud.firestore {
       return signedIn() && request.auth.token.email in [
         'admin1@betvora.app',
         'admin2@betvora.app',
+        'admin3@betvora.app',
         'agent@betvora.app'
       ];
     }
