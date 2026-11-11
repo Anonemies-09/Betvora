@@ -24,6 +24,7 @@ const ADMIN_LINKS = [
 { to: '/admin/promo-codes', label: 'Promo Codes', icon: Megaphone, adminOnly: true },
   { to: '/admin/banners', label: 'Banners', icon: Sparkles, adminOnly: true },
 { to: '/admin/reports', label: 'Reports', icon: Sparkles, adminOnly: true },
+{ to: '/admin/audit', label: 'Audit Log', icon: Sparkles, adminOnly: true },
 ]
 
 export default function AdminLayout() {

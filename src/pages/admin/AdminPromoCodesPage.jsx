@@ -4,6 +4,7 @@ import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
 import EmptyState from '../../components/common/EmptyState'
 import { createPromoCode, listPromoCodes } from '../../services/promoCodeService'
+import { logAction } from '../../services/auditService'
 import { formatCurrency } from '../../utils/format'
 
 export default function AdminPromoCodesPage() {
@@ -32,6 +33,7 @@ export default function AdminPromoCodesPage() {
     setMessage('')
     try {
       await createPromoCode(form)
+      await logAction('promo.created', { code: form.code, bonus: form.bonus })
       setForm({ code: '', bonus: '', expiryDays: '30', usageLimit: '100' })
       setMessage('Promo code created.')
       await load()

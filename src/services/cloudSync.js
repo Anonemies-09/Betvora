@@ -24,6 +24,7 @@ export const CLOUD = {
   bookingCodes: 'bookingCodes',
   promoCodes: 'promoCodes',
   promoRedemptions: 'promoRedemptions',
+  auditLogs: 'auditLogs',
 }
 
 export const LOCAL = {
@@ -39,6 +40,7 @@ export const LOCAL = {
   bookingCodes: 'betvora_booking_codes',
   promoCodes: 'betvora_promo_codes',
   promoRedemptions: 'betvora_promo_redemptions',
+  auditLogs: 'betvora_audit_logs',
 }
 
 const WRITE_TIMEOUT = 20000

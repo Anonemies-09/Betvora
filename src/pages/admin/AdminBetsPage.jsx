@@ -13,6 +13,7 @@ import { getAllBets, cancelBet, placeBet } from '../../services/betService'
 import { getAllUsers } from '../../services/userService'
 import { getMatches } from '../../services/matchService'
 import { getWalletData, readAllWallets } from '../../services/walletService'
+import { logAction } from '../../services/auditService'
 import { pullStaffData } from '../../services/cloudSync'
 import { MARKET_GROUPS, OUTCOME_LABELS, OUTCOME_NAMES } from '../../data/catalogue'
 import { formatCurrency, formatOdds, formatDate, getBetNumber } from '../../utils/format'
@@ -261,6 +262,7 @@ export default function AdminBetsPage() {
       setDraft(EMPTY_DRAFT)
       setPlayerBalance(null)
       await load()
+      await logAction('bet.created', { betId: selections.map((s) => s.matchId).join(','), userId: player.id, stake: stakeValue, legs: selections.length })
       flash(
         `${selections.length === 1 ? 'Bet' : `${selections.length}-fold bet`} created for ${
           player.fullName || player.email
@@ -277,6 +279,7 @@ export default function AdminBetsPage() {
     if (!window.confirm(`Void bet ${getBetNumber(bet.id)} and refund ${formatCurrency(bet.stake)}?`)) return
     try {
       await cancelBet(bet.id)
+      await logAction('bet.voided', { betId: bet.id, userId: bet.userId })
       await load()
     } catch (err) {
       window.alert(err.message)

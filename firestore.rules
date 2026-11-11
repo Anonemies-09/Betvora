@@ -132,6 +132,12 @@ service cloud.firestore {
         && (isOwner(resource.data.userId) || isStaff());
     }
 
+    // --------------------------------------------------------- audit logs
+    match /auditLogs/{logId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+    }
+
     // --------------------------------------------------------- promo codes
     match /promoCodes/{codeId} {
       allow read: if signedIn();
