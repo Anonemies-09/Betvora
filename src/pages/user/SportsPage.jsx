@@ -7,9 +7,22 @@ import Tabs from '../../components/common/Tabs'
 import EmptyState from '../../components/common/EmptyState'
 import BetSlipCard from '../../components/betting/BetSlipCard'
 import AdSlot from '../../components/common/AdSlot'
+import Input from '../../components/common/Input'
 import { SPORTS, LEAGUES, MORE_SPORT_IDS } from '../../data/catalogue'
 import { useCatalogue } from '../../hooks/useCatalogue'
-import { CircleDot } from 'lucide-react'
+import { CircleDot, Search, Star } from 'lucide-react'
+import { cn } from '../../utils/cn'
+
+const FAVOURITES_KEY = 'betvora_favourites'
+
+function readFavourites() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FAVOURITES_KEY) || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 const isToday = (t) => {
   const now = new Date()
@@ -37,10 +50,23 @@ export default function SportsPage() {
   const { filterId } = useParams()
   const [filter, setFilter] = useState(filterId || 'all')
   const [status, setStatus] = useState('Featured')
+  const [query, setQuery] = useState('')
+  const [favourites, setFavourites] = useState(readFavourites)
+  const [showFavourites, setShowFavourites] = useState(false)
 
   useEffect(() => {
     if (filterId) setFilter(filterId)
   }, [filterId])
+
+  const toggleFavourite = (matchId) => {
+    setFavourites((current) => {
+      const next = current.includes(matchId)
+        ? current.filter((id) => id !== matchId)
+        : [...current, matchId]
+      localStorage.setItem(FAVOURITES_KEY, JSON.stringify(next))
+      return next
+    })
+  }
 
   const sport = SPORTS.find((s) => s.id === filter)
   const isLeague = LEAGUES.some((l) => l.id === filter)
@@ -59,14 +85,26 @@ export default function SportsPage() {
               ? sportOfMatch(m) === filter
               : true
     const byStatus =
-      status === 'Featured'
-        ? m.featured || m.isLive
-        : status === 'Live'
-          ? m.isLive
-          : status === 'Today'
-            ? isToday(m.startTime)
-            : isTomorrow(m.startTime)
-    return byFilter && byStatus
+      showFavourites
+        ? favourites.includes(m.id)
+        : status === 'Featured'
+          ? m.featured || m.isLive
+          : status === 'Live'
+            ? m.isLive
+            : status === 'Today'
+              ? isToday(m.startTime)
+              : isTomorrow(m.startTime)
+    if (!byFilter || !byStatus) return false
+    if (query.trim()) {
+      const q = query.trim().toLowerCase()
+      const league = LEAGUES.find((l) => l.id === m.leagueId)
+      const haystack = [m.homeTeam, m.awayTeam, league?.name, league?.country]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      if (!haystack.includes(q)) return false
+    }
+    return true
   })
 
   const sportLeagues = isMore
@@ -145,6 +183,31 @@ export default function SportsPage() {
             </div>
           )}
 
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search teams, leagues…"
+                aria-label="Search matches"
+                className="w-full rounded-xl border border-white/10 bg-navy-800 px-4 py-3 pl-10 text-sm text-white placeholder:text-white/30 outline-none focus:border-gold"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowFavourites((current) => !current)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold transition-colors ${
+                showFavourites
+                  ? 'border-gold bg-gold/10 text-gold'
+                  : 'border-white/10 bg-navy-800 text-white/70 hover:text-white'
+              }`}
+            >
+              <Star className={cn('h-4 w-4', showFavourites && 'fill-gold')} />
+              Favourites
+            </button>
+          </div>
+
           <Tabs tabs={['Featured', 'Today', 'Tomorrow', 'Live']} active={status} onChange={setStatus} />
 
           {matches.length === 0 ? (
@@ -159,6 +222,8 @@ export default function SportsPage() {
                   <MatchCard
                     key={match.id}
                     match={match}
+                    favourite={favourites.includes(match.id)}
+                    onFavouriteToggle={toggleFavourite}
                     onClick={() => navigate(`/match/${match.id}`)}
                   />
                 ))}

@@ -1,3 +1,4 @@
+import { Star } from 'lucide-react'
 import Card from '../common/Card'
 import Badge from '../common/Badge'
 import OddsButton from './OddsButton'
@@ -6,7 +7,7 @@ import { LEAGUES } from '../../data/catalogue'
 import { formatTime, flagEmoji } from '../../utils/format'
 import { cn } from '../../utils/cn'
 
-export default function MatchCard({ match, onClick, showLeague = true }) {
+export default function MatchCard({ match, onClick, showLeague = true, favourite = false, onFavouriteToggle }) {
   const league = LEAGUES.find((l) => l.id === match.leagueId)
   const winner = match.markets?.winner
   const hasDraw = winner ? 'draw' in winner : false
@@ -31,8 +32,21 @@ export default function MatchCard({ match, onClick, showLeague = true }) {
           <span>{league.name}</span>
           <span className="mx-1 text-white/15">•</span>
           <span>{league.country}</span>
+          {onFavouriteToggle && (
+            <button
+              type="button"
+              aria-label={favourite ? 'Remove from favourites' : 'Add to favourites'}
+              onClick={(event) => {
+                event.stopPropagation()
+                onFavouriteToggle(match.id)
+              }}
+              className="ml-auto rounded-md p-1 text-white/35 transition-colors hover:text-gold"
+            >
+              <Star className={cn('h-3.5 w-3.5', favourite && 'fill-gold text-gold')} />
+            </button>
+          )}
           {match.isLive && (
-            <span className="ml-auto">
+            <span className={onFavouriteToggle ? '' : 'ml-auto'}>
               <Badge tone="green" dot>
                 Live {match.minute}&apos;
               </Badge>

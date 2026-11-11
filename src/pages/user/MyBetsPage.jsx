@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Card from '../../components/common/Card'
 import Badge from '../../components/common/Badge'
 import Tabs from '../../components/common/Tabs'
 import EmptyState from '../../components/common/EmptyState'
 import AdSlot from '../../components/common/AdSlot'
+import Input from '../../components/common/Input'
+import Button from '../../components/common/Button'
 import { getMyBets } from '../../services/betService'
 import { formatCurrency, formatOdds, formatDate, getBetNumber } from '../../utils/format'
+import { Download, Search } from 'lucide-react'
 
 const STATUS_STYLES = {
   pending: { tone: 'navy', dot: true, label: 'Pending' },
@@ -66,6 +69,9 @@ function BetCard({ bet }) {
 export default function MyBetsPage() {
   const [bets, setBets] = useState([])
   const [tab, setTab] = useState('Open')
+  const [query, setQuery] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   useEffect(() => {
     let active = true
@@ -77,38 +83,129 @@ export default function MyBetsPage() {
     }
   }, [])
 
-  const filtered =
-    tab === 'Open'
-      ? bets.filter((b) => b.status === 'pending')
-      : tab === 'Settled'
-        ? bets.filter((b) => ['won', 'lost', 'cancelled'].includes(b.status))
-        : []
+  const filtered = useMemo(() => {
+    const base =
+      tab === 'Open'
+        ? bets.filter((b) => b.status === 'pending')
+        : tab === 'Settled'
+          ? bets.filter((b) => ['won', 'lost', 'cancelled', 'cashed_out'].includes(b.status))
+          : []
+    const fromTime = fromDate ? new Date(fromDate).getTime() : 0
+    const toTime = toDate ? new Date(toDate).getTime() + 86400000 : Infinity
+    return base.filter((bet) => {
+      if (query.trim()) {
+        const q = query.trim().toLowerCase()
+        const haystack = [
+          getBetNumber(bet.id),
+          bet.type,
+          bet.status,
+          ...bet.selections.map((s) => `${s.homeTeam} ${s.awayTeam} ${s.outcome} ${s.market}`),
+        ]
+          .join(' ')
+          .toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      const placed = new Date(bet.placedAt).getTime()
+      if (placed < fromTime || placed > toTime) return false
+      return true
+    })
+  }, [bets, tab, query, fromDate, toDate])
+
+  const exportCsv = () => {
+    const rows = [
+      ['Bet number', 'Type', 'Status', 'Placed at', 'Selections', 'Stake', 'Odds', 'Potential win'],
+      ...filtered.map((bet) => [
+        getBetNumber(bet.id),
+        bet.type,
+        bet.status,
+        bet.placedAt,
+        bet.selections.map((s) => `${s.homeTeam} vs ${s.awayTeam} - ${s.outcome} @ ${s.odds}`).join(' | '),
+        bet.stake,
+        bet.totalOdds,
+        bet.potentialWin,
+      ]),
+    ]
+    const csv = rows
+      .map((row) =>
+        row
+          .map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`)
+          .join(','),
+      )
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `betvora-bets-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 lg:max-w-4xl">
-      <h1 className="text-2xl font-black uppercase tracking-tight text-white">My Bets</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-black uppercase tracking-tight text-white">My Bets</h1>
+        <Button size="sm" variant="outline" onClick={exportCsv} disabled={filtered.length === 0}>
+          <Download className="h-4 w-4" />
+          Export CSV
+        </Button>
+      </div>
+
       <Tabs tabs={['Open', 'Settled', 'Cash Out']} active={tab} onChange={setTab} />
       {tab === 'Cash Out' ? (
         <EmptyState
           title="Cash Out is coming soon"
           text="When it lands, you'll be able to close an open bet early and take whatever value is on the table."
         />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          title={`No ${tab.toLowerCase()} bets`}
-          text={
-            tab === 'Open'
-              ? 'Bets you place show up here while they wait to settle.'
-              : 'Settled bets — won, lost or cancelled — will appear here.'
-          }
-        />
       ) : (
-        <div className="space-y-3">
-          {filtered.map((bet) => (
-            <BetCard key={bet.id} bet={bet} />
-          ))}
-          <AdSlot slot="mybets_bottom" className="mx-auto w-full max-w-2xl" />
-        </div>
+        <>
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search bets, teams, markets…"
+                aria-label="Search bets"
+                className="w-full rounded-xl border border-white/10 bg-navy-800 px-4 py-3 pl-10 text-sm text-white placeholder:text-white/30 outline-none focus:border-gold"
+              />
+            </div>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(event) => setFromDate(event.target.value)}
+              aria-label="From date"
+              className="rounded-xl border border-white/10 bg-navy-800 px-3 py-3 text-sm text-white outline-none focus:border-gold"
+            />
+            <input
+              type="date"
+              value={toDate}
+              onChange={(event) => setToDate(event.target.value)}
+              aria-label="To date"
+              className="rounded-xl border border-white/10 bg-navy-800 px-3 py-3 text-sm text-white outline-none focus:border-gold"
+            />
+          </div>
+
+          {filtered.length === 0 ? (
+            <EmptyState
+              title={`No ${tab.toLowerCase()} bets`}
+              text={
+                tab === 'Open'
+                  ? 'Bets you place show up here while they wait to settle.'
+                  : 'Settled bets — won, lost or cancelled — will appear here.'
+              }
+            />
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((bet) => (
+                <BetCard key={bet.id} bet={bet} />
+              ))}
+              <AdSlot slot="mybets_bottom" className="mx-auto w-full max-w-2xl" />
+            </div>
+          )}
+        </>
       )}
     </div>
   )
