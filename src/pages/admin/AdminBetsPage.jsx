@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ReceiptText, Ban, Wallet } from 'lucide-react'
+import { ReceiptText, Ban, Wallet, X, Plus } from 'lucide-react'
 import Card from '../../components/common/Card'
 import Badge from '../../components/common/Badge'
 import Tabs from '../../components/common/Tabs'
@@ -26,7 +26,8 @@ const STATUS_META = {
 
 const TABS = ['Pending', 'Won', 'Lost', 'Cancelled']
 
-const EMPTY_BET = { userId: '', matchId: '', market: 'winner', outcome: 'home', stake: '' }
+const EMPTY_BOOKING = { userId: '', stake: '' }
+const EMPTY_DRAFT = { matchId: '', market: 'winner', outcome: 'home' }
 
 function labelForOutcome(match, market, outcomeKey) {
   if (market === 'winner') {
@@ -43,6 +44,10 @@ function availableMarkets(match) {
     const market = match.markets[group.id]
     return market && Object.keys(market).length > 0
   })
+}
+
+function selectionKey(selection) {
+  return `${selection.matchId}-${selection.market}-${selection.outcomeKey}`
 }
 
 /**
@@ -78,8 +83,11 @@ export default function AdminBetsPage() {
   const [modal, setModal] = useState(null)
   const [players, setPlayers] = useState([])
   const [matches, setMatches] = useState([])
-  const [newBet, setNewBet] = useState(EMPTY_BET)
+  const [booking, setBooking] = useState(EMPTY_BOOKING)
+  const [slip, setSlip] = useState([])
+  const [draft, setDraft] = useState(EMPTY_DRAFT)
   const [message, setMessage] = useState('')
+  const [formMessage, setFormMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [playerBalance, setPlayerBalance] = useState(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
@@ -107,7 +115,7 @@ export default function AdminBetsPage() {
   // Show the player's live balance so staff cannot book more than they hold.
   useEffect(() => {
     let active = true
-    if (modal !== 'new' || !newBet.userId) {
+    if (modal !== 'new' || !booking.userId) {
       setPlayerBalance(null)
       setBalanceLoading(false)
       return () => {
@@ -116,7 +124,7 @@ export default function AdminBetsPage() {
     }
     setPlayerBalance(null)
     setBalanceLoading(true)
-    getWalletData(newBet.userId)
+    getWalletData(booking.userId)
       .then((wallet) => {
         if (active) setPlayerBalance(Number(wallet?.balance || 0))
       })
@@ -129,7 +137,7 @@ export default function AdminBetsPage() {
     return () => {
       active = false
     }
-  }, [modal, newBet.userId])
+  }, [modal, booking.userId])
 
   const load = () => getAllBets().then(setBets)
 
@@ -138,38 +146,50 @@ export default function AdminBetsPage() {
     setTimeout(() => setMessage(''), 4000)
   }
 
+  const notifyForm = (text) => {
+    setFormMessage(text)
+  }
+
   const names = useMemo(() => {
     const map = new Map()
     for (const player of players) map.set(player.id, player.fullName || player.email)
     return map
   }, [players])
 
-  const selectedMatch = matches.find((m) => m.id === newBet.matchId)
+  const selectedMatch = matches.find((m) => m.id === draft.matchId)
   const markets = availableMarkets(selectedMatch)
-  const outcomes = selectedMatch?.markets?.[newBet.market] || {}
-  const currentOdds = Number(outcomes[newBet.outcome] || 0)
-  const stakeValue = Number(newBet.stake || 0)
-  const potentialWin = currentOdds > 0 && stakeValue > 0 ? stakeValue * currentOdds : 0
+  const outcomes = selectedMatch?.markets?.[draft.market] || {}
+  const currentOdds = Number(outcomes[draft.outcome] || 0)
+  const stakeValue = Number(booking.stake || 0)
 
-  // Staff can share the selected pick as a booking code before (or instead of)
-  // staking it themselves.
-  const previewSelections = useMemo(() => {
-    if (!selectedMatch || !currentOdds) return []
-    return [
-      {
-        matchId: selectedMatch.id,
-        homeTeam: selectedMatch.homeTeam,
-        awayTeam: selectedMatch.awayTeam,
-        market: markets.find((m) => m.id === newBet.market)?.short || '1X2',
-        outcome: labelForOutcome(selectedMatch, newBet.market, newBet.outcome),
-        outcomeKey: newBet.outcome,
-        odds: currentOdds,
-      },
-    ]
-  }, [selectedMatch, currentOdds, markets, newBet.market, newBet.outcome])
+  const draftSelection = useMemo(() => {
+    if (!selectedMatch || !currentOdds) return null
+    return {
+      matchId: selectedMatch.id,
+      homeTeam: selectedMatch.homeTeam,
+      awayTeam: selectedMatch.awayTeam,
+      market: markets.find((m) => m.id === draft.market)?.short || '1X2',
+      outcome: labelForOutcome(selectedMatch, draft.market, draft.outcome),
+      outcomeKey: draft.outcome,
+      odds: currentOdds,
+    }
+  }, [selectedMatch, currentOdds, markets, draft.market, draft.outcome])
+
+  const totalOdds = slip.reduce((acc, selection) => acc * Number(selection.odds), 1)
+  // With nothing explicitly added yet, quote the picker selection so a quick
+  // single still shows what it would pay.
+  const quoteOdds = slip.length ? totalOdds : currentOdds
+  const potentialWin = stakeValue > 0 && quoteOdds > 0 ? stakeValue * quoteOdds : 0
+
+  // A code can be shared for the multi as it is built, or for the current pick
+  // before the first leg is added.
+  const shareSelections = slip.length ? slip : draftSelection ? [draftSelection] : []
 
   const openNewBet = () => {
-    setNewBet(EMPTY_BET)
+    setBooking(EMPTY_BOOKING)
+    setSlip([])
+    setDraft(EMPTY_DRAFT)
+    setFormMessage('')
     setPlayerBalance(null)
     setModal('new')
   }
@@ -178,60 +198,76 @@ export default function AdminBetsPage() {
     const match = matches.find((m) => m.id === matchId)
     const market = availableMarkets(match)[0]?.id || 'winner'
     const outcome = Object.keys(match?.markets?.[market] || {})[0] || 'home'
-    setNewBet((bet) => ({ ...bet, matchId, market, outcome }))
+    setDraft((current) => ({ ...current, matchId, market, outcome }))
+    setFormMessage('')
   }
 
   const selectMarket = (market) => {
     const outcome = Object.keys(selectedMatch?.markets?.[market] || {})[0] || ''
-    setNewBet((bet) => ({ ...bet, market, outcome }))
+    setDraft((current) => ({ ...current, market, outcome }))
+    setFormMessage('')
+  }
+
+  const addSelection = () => {
+    if (!draftSelection) {
+      notifyForm('Choose a match, market and selection first.')
+      return
+    }
+    if (slip.some((selection) => selectionKey(selection) === selectionKey(draftSelection))) {
+      notifyForm('That selection is already in this booking.')
+      return
+    }
+    setSlip((current) => [...current, draftSelection])
+    setDraft(EMPTY_DRAFT)
+    setFormMessage('')
+  }
+
+  const removeSelection = (index) => {
+    setSlip((current) => current.filter((_, i) => i !== index))
+    setFormMessage('')
   }
 
   const createBet = async () => {
-    const player = players.find((p) => p.id === newBet.userId)
-    const match = matches.find((m) => m.id === newBet.matchId)
+    const player = players.find((p) => p.id === booking.userId)
+    // If staff picked a selection but did not press "Add", treat it as the bet.
+    const selections = slip.length ? slip : draftSelection ? [draftSelection] : []
+
     if (!player) {
-      flash('Select the player this booking is for.')
+      notifyForm('Select the player this booking is for.')
       return
     }
-    if (!match) {
-      flash('Select a match.')
-      return
-    }
-    if (!currentOdds) {
-      flash('That selection is no longer available.')
+    if (!selections.length) {
+      notifyForm('Add at least one selection to this booking.')
       return
     }
     if (!stakeValue || stakeValue <= 0) {
-      flash('Enter a valid stake.')
+      notifyForm('Enter a valid stake.')
       return
     }
     if (playerBalance !== null && stakeValue > playerBalance) {
-      flash(
+      notifyForm(
         `${player.fullName || player.email} only has ${formatCurrency(playerBalance)} available.`,
       )
       return
     }
 
-    const selection = {
-      matchId: match.id,
-      homeTeam: match.homeTeam,
-      awayTeam: match.awayTeam,
-      market: markets.find((m) => m.id === newBet.market)?.short || '1X2',
-      outcome: labelForOutcome(match, newBet.market, newBet.outcome),
-      outcomeKey: newBet.outcome,
-      odds: currentOdds,
-    }
-
     setSaving(true)
+    setFormMessage('')
     try {
-      await placeBet({ selections: [selection], stake: stakeValue, userId: player.id })
+      await placeBet({ selections, stake: stakeValue, userId: player.id })
       setModal(null)
-      setNewBet(EMPTY_BET)
+      setBooking(EMPTY_BOOKING)
+      setSlip([])
+      setDraft(EMPTY_DRAFT)
       setPlayerBalance(null)
       await load()
-      flash(`Bet created for ${player.fullName || player.email}.`)
+      flash(
+        `${selections.length === 1 ? 'Bet' : `${selections.length}-fold bet`} created for ${
+          player.fullName || player.email
+        }.`,
+      )
     } catch (err) {
-      flash(err.message)
+      notifyForm(err.message)
     } finally {
       setSaving(false)
     }
@@ -330,10 +366,14 @@ export default function AdminBetsPage() {
         open={modal === 'new'}
         onClose={() => setModal(null)}
         title="Create Bet"
-        subtitle="Place a bet on behalf of a player. The stake comes out of their wallet."
+        subtitle="Build a single or multi-match booking for a player. The stake comes out of their wallet."
         footer={
           <Button fullWidth onClick={createBet} disabled={saving}>
-            {saving ? 'Creating…' : 'Create Bet'}
+            {saving
+              ? 'Creating…'
+              : slip.length > 1
+                ? `Create ${slip.length}-fold Bet`
+                : 'Create Bet'}
           </Button>
         }
       >
@@ -345,11 +385,11 @@ export default function AdminBetsPage() {
                 value: p.id,
                 label: `${p.fullName || p.email} · ${p.email}`,
               }))}
-              value={newBet.userId}
-              onChange={(userId) => setNewBet((b) => ({ ...b, userId }))}
+              value={booking.userId}
+              onChange={(userId) => setBooking((current) => ({ ...current, userId }))}
               placeholder={players.length ? 'Select player' : 'No players found'}
             />
-            {newBet.userId && (
+            {booking.userId && (
               <p className="mt-2 flex items-center gap-1.5 text-xs text-white/50">
                 <Wallet className="h-3.5 w-3.5" />
                 {balanceLoading
@@ -361,6 +401,54 @@ export default function AdminBetsPage() {
             )}
           </div>
 
+          <div className="border-t border-white/5 pt-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/40">
+                Selections
+              </p>
+              <span className="text-[11px] font-bold text-white/40">
+                {slip.length} leg{slip.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            {slip.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-white/10 bg-navy-800/40 px-3 py-4 text-center text-xs text-white/35">
+                Pick a match below and add each selection to build the booking.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {slip.map((selection, index) => (
+                  <div
+                    key={selectionKey(selection)}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-navy-800/60 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-white">
+                        {selection.homeTeam} vs {selection.awayTeam}
+                      </p>
+                      <p className="truncate text-[11px] text-white/40">
+                        {selection.market}: {selection.outcome}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-sm font-black text-gold">
+                        {formatOdds(selection.odds)}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${selection.outcome}`}
+                        onClick={() => removeSelection(index)}
+                        className="rounded-md p-1 text-white/35 transition-colors hover:bg-danger/10 hover:text-danger"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/40">Match</p>
             <Dropdown
@@ -368,7 +456,7 @@ export default function AdminBetsPage() {
                 value: m.id,
                 label: `${m.homeTeam} vs ${m.awayTeam}`,
               }))}
-              value={newBet.matchId}
+              value={draft.matchId}
               onChange={selectMatch}
               placeholder={matches.length ? 'Select match' : 'No open matches'}
             />
@@ -379,7 +467,7 @@ export default function AdminBetsPage() {
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-white/40">Market</p>
               <Dropdown
                 options={markets.map((m) => ({ value: m.id, label: m.name }))}
-                value={newBet.market}
+                value={draft.market}
                 onChange={selectMarket}
                 placeholder="Select market"
               />
@@ -389,27 +477,42 @@ export default function AdminBetsPage() {
               <Dropdown
                 options={Object.entries(outcomes).map(([key, price]) => ({
                   value: key,
-                  label: `${labelForOutcome(selectedMatch || {}, newBet.market, key)} · ${formatOdds(price)}`,
+                  label: `${labelForOutcome(selectedMatch || {}, draft.market, key)} · ${formatOdds(price)}`,
                 }))}
-                value={newBet.outcome}
-                onChange={(outcome) => setNewBet((b) => ({ ...b, outcome }))}
+                value={draft.outcome}
+                onChange={(outcome) => {
+                  setDraft((current) => ({ ...current, outcome }))
+                  setFormMessage('')
+                }}
                 placeholder="Select outcome"
               />
             </div>
           </div>
 
+          <Button
+            variant="secondary"
+            size="sm"
+            fullWidth
+            onClick={addSelection}
+            disabled={!draftSelection}
+          >
+            <Plus className="h-4 w-4" />
+            Add selection to booking
+          </Button>
+
           <Input
             label="Stake"
             type="number"
             min="0"
-            value={newBet.stake}
-            onChange={(e) => setNewBet((b) => ({ ...b, stake: e.target.value }))}
+            value={booking.stake}
+            onChange={(e) => setBooking((current) => ({ ...current, stake: e.target.value }))}
           />
 
-          {currentOdds > 0 && (
+          {quoteOdds > 0 && (
             <div className="flex items-center justify-between rounded-xl border border-white/10 bg-navy-800/60 px-4 py-3 text-sm">
               <span className="text-white/50">
-                Odds <b className="text-gold">{formatOdds(currentOdds)}</b>
+                {slip.length > 1 ? 'Total odds' : 'Odds'}{' '}
+                <b className="text-gold">{formatOdds(quoteOdds)}</b>
               </span>
               <span className="text-white/50">
                 Potential win <b className="text-success">{formatCurrency(potentialWin)}</b>
@@ -417,8 +520,14 @@ export default function AdminBetsPage() {
             </div>
           )}
 
-          {previewSelections.length > 0 && (
-            <BookingCodePanel selections={previewSelections} />
+          {shareSelections.length > 0 && (
+            <BookingCodePanel selections={shareSelections} />
+          )}
+
+          {formMessage && (
+            <p className="rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+              {formMessage}
+            </p>
           )}
         </div>
       </Modal>
