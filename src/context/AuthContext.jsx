@@ -9,8 +9,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setUser(authService.getSession())
-    setLoading(false)
+    let active = true
+    authService
+      .restoreSession()
+      .then((restored) => {
+        if (active) setUser(restored || null)
+      })
+      .catch(() => {
+        if (active) setUser(null)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
   const login = useCallback(async (credentials) => {
@@ -19,7 +32,11 @@ export function AuthProvider({ children }) {
     return loggedIn
   }, [])
 
-  const register = useCallback((data) => authService.register(data), [])
+  const register = useCallback(async (data) => {
+    const created = await authService.register(data)
+    if (created) setUser(created)
+    return created
+  }, [])
 
   const verifyOtp = useCallback(async (data) => {
     const verified = await authService.verifyOtp(data)
@@ -30,11 +47,14 @@ export function AuthProvider({ children }) {
   const requestPasswordReset = useCallback((data) => authService.requestPasswordReset(data), [])
   const resetPassword = useCallback((data) => authService.resetPassword(data), [])
 
-  const updateProfile = useCallback(async (updates) => {
-    const updated = await authService.updateProfile(user.id, updates)
-    setUser(updated)
-    return updated
-  }, [user])
+  const updateProfile = useCallback(
+    async (updates) => {
+      const updated = await authService.updateProfile(user.id, updates)
+      setUser(updated)
+      return updated
+    },
+    [user],
+  )
 
   const changePassword = useCallback(
     (payload) => authService.changePassword(user.id, payload),
@@ -59,7 +79,18 @@ export function AuthProvider({ children }) {
       updateProfile,
       changePassword,
     }),
-    [user, loading, login, register, logout, verifyOtp, requestPasswordReset, resetPassword, updateProfile, changePassword],
+    [
+      user,
+      loading,
+      login,
+      register,
+      logout,
+      verifyOtp,
+      requestPasswordReset,
+      resetPassword,
+      updateProfile,
+      changePassword,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

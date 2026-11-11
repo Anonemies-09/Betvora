@@ -2,9 +2,45 @@
 // Route coverage: every logged-in and admin route must render real content
 // without uncaught/recoverable errors.
 import React from 'react'
-import { describe, it, expect, afterEach, beforeEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import Root from './App'
+
+// Route tests exercise the UI with a seeded localStorage session. Keep auth
+// restore and all cloud traffic local so the suite never depends on Firebase.
+vi.mock('./services/authService', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    restoreSession: async () => {
+      try {
+        return JSON.parse(localStorage.getItem('betvora_session'))
+      } catch {
+        return null
+      }
+    },
+  }
+})
+
+vi.mock('./services/cloudSync', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    cloudEnabled: () => false,
+    cloudGet: async () => null,
+    cloudList: async () => null,
+    cloudListByUser: async () => null,
+    cloudSet: async () => true,
+    cloudDelete: async () => true,
+    hydrateUserData: async () => {},
+    hydrateWallet: async () => {},
+    ensureWalletDoc: async () => {},
+    hydratePublicData: async () => {},
+    pullStaffData: async () => {},
+    subscribeWallet: () => () => {},
+    subscribeNotifications: () => () => {},
+  }
+})
 
 const roots = []
 

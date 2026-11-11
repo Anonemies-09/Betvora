@@ -42,7 +42,7 @@ const COMING_SOON = {
   Bank: {
     icon: Landmark,
     title: 'No bank accounts linked',
-    text: 'Link a bank account to fund your wallet. Available soon in the demo.',
+    text: 'Link a bank account to receive withdrawals.',
   },
   'Payment Methods': {
     icon: CreditCard,
@@ -90,7 +90,7 @@ function TransactionRow({ tx, currency }) {
 }
 
 export default function WalletPage() {
-  const { balance, currency, transactions, deposit, withdraw, refresh } = useWallet()
+  const { balance, currency, transactions, refresh } = useWallet()
   const [section, setSection] = useState('Transactions')
   const [modal, setModal] = useState(null)
   const [amount, setAmount] = useState('')

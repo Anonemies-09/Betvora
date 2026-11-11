@@ -64,7 +64,7 @@ export default function SupportPage() {
         <MessageCircle className="h-6 w-6 shrink-0 text-gold" />
         <div className="flex-1">
           <p className="text-sm font-bold text-white">Still need help?</p>
-          <p className="text-xs text-white/40">Reach our demo support team (email only).</p>
+          <p className="text-xs text-white/40">Reach our support team (email only).</p>
         </div>
         <a
           href="mailto:support@betvora.app"

@@ -11,6 +11,7 @@ import Input from '../../components/common/Input'
 import { getAllBets, cancelBet, placeBet } from '../../services/betService'
 import { getAllUsers } from '../../services/userService'
 import { getMatches } from '../../services/matchService'
+import { pullStaffData } from '../../services/cloudSync'
 import { formatCurrency, formatOdds, formatDate, getBetNumber } from '../../utils/format'
 
 const STATUS_META = {
@@ -32,9 +33,23 @@ export default function AdminBetsPage() {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    getAllBets().then(setBets)
-    getAllUsers().then(setUsers)
-    getMatches().then((data) => setMatches(data.filter((m) => m.status !== 'ended' && m.status !== 'void')))
+    let active = true
+    ;(async () => {
+      await pullStaffData()
+      if (!active) return
+      const [betData, userData, matchData] = await Promise.all([
+        getAllBets(),
+        getAllUsers(),
+        getMatches(),
+      ])
+      if (!active) return
+      setBets(betData)
+      setUsers(userData)
+      setMatches(matchData.filter((m) => m.status !== 'ended' && m.status !== 'void'))
+    })()
+    return () => {
+      active = false
+    }
   }, [])
 
   const load = () => getAllBets().then(setBets)

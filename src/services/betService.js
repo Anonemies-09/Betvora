@@ -1,40 +1,60 @@
-// Bet service — placement + the Phase 18 settlement engine.
-// Pending bets are evaluated when an admin settles a match; wins are
-// credited and losses marked. Refunded (voided) bets return the stake.
+// Bet service — placement + the settlement engine.
+//
+// Bets live in Firestore (`bets/{id}`) with a `userId` owner, so a bet placed
+// on one device appears on every device the user signs in on. The wallet is
+// debited first and refunded if the shared write cannot be confirmed.
 
-// no demo data in live mode
 import { readMatches } from './matchService'
 import * as authService from './authService'
 import { deductForBet, creditWinnings, refundStake } from './walletService'
-
-function currentUserId() {
-  return authService.getSession()?.id || 'u001'
-}
 import { createNotification } from './notificationService'
-import { COLLECTIONS, mirrorPersist } from './firestoreService'
+import {
+  CLOUD,
+  LOCAL,
+  cloudEnabled,
+  cloudListByUser,
+  cloudSet,
+  readLocal,
+  replaceUserSlice,
+  sortNewest,
+  writeLocal,
+} from './cloudSync'
 
-const BETS_KEY = 'betvora_bets'
+const BETS_KEY = LOCAL.bets
 
-function delay(ms = 400) {
+function delay(ms = 300) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function readBets() {
-  try {
-    const raw = localStorage.getItem(BETS_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
+function currentUserId() {
+  return authService.getSession()?.id || ''
 }
 
-function persist(bets) {
-  localStorage.setItem(BETS_KEY, JSON.stringify(bets))
-  mirrorPersist(COLLECTIONS.bets, bets)
+function readBets() {
+  return readLocal(BETS_KEY, [])
+}
+
+function persistLocal(bets) {
+  writeLocal(BETS_KEY, bets)
 }
 
 function computeTotalOdds(selections) {
   return selections.reduce((acc, s) => acc * Number(s.odds), 1)
+}
+
+function nextBetId(bets) {
+  let id = `${String(Date.now()).slice(-6)}${Math.floor(10 + Math.random() * 90)}`
+  let guard = 0
+  while (bets.some((b) => String(b.id) === id) && guard < 50) {
+    id = `${String(Date.now()).slice(-6)}${Math.floor(10 + Math.random() * 90)}`
+    guard += 1
+  }
+  return id
+}
+
+async function saveBetCloud(bet) {
+  if (!cloudEnabled()) return true
+  return cloudSet(CLOUD.bets, bet.id, bet)
 }
 
 export async function placeBet({ selections, stake, userId }) {
@@ -47,10 +67,12 @@ export async function placeBet({ selections, stake, userId }) {
     throw new Error('Enter a valid stake.')
   }
   const uid = userId || currentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
+
   const totalOdds = computeTotalOdds(selections)
   const bets = readBets()
   const bet = {
-    id: String(10000 + bets.length + 1),
+    id: nextBetId(bets),
     userId: uid,
     type: selections.length === 1 ? 'single' : 'multiple',
     status: 'pending',
@@ -68,46 +90,70 @@ export async function placeBet({ selections, stake, userId }) {
       odds: Number(s.odds),
     })),
   }
-  bets.unshift(bet)
-  // Take the stake first: if the balance is short we must not leave a
-  // phantom pending bet behind. If saving fails, return the stake.
+
+  // Take the stake first: a short balance must never leave a phantom bet.
   await deductForBet(value, `Bet placed — #BV${bet.id}`, uid)
-  try {
-    persist(bets)
-  } catch (err) {
+
+  const saved = await saveBetCloud(bet)
+  if (cloudEnabled() && !saved) {
     await refundStake(value, `Bet #BV${bet.id} could not be saved`, uid)
-    throw err
+    throw new Error('Could not save your bet. Your stake was refunded.')
   }
-  createNotification({ type: 'bet', title: 'Bet placed', text: `Your bet #BV${bet.id} has been placed successfully.` })
+
+  bets.unshift(bet)
+  persistLocal(bets)
+  await createNotification({
+    type: 'bet',
+    title: 'Bet placed',
+    text: `Your bet #BV${bet.id} has been placed successfully.`,
+    userId: uid,
+  })
   return bet
 }
 
+/** Pull this user's bets from the cloud, then return the local view. */
 export async function getMyBets() {
-  await delay()
+  await delay(150)
   const uid = currentUserId()
+  if (!uid) return []
+  if (cloudEnabled()) {
+    const remote = await cloudListByUser(CLOUD.bets, uid)
+    if (remote) replaceUserSlice(uid, LOCAL.bets, remote)
+  }
   return readBets().filter((bet) => bet.userId === uid)
 }
 
+export async function refreshMyBets() {
+  return getMyBets()
+}
+
 export async function getAllBets() {
-  await delay()
-  return readBets()
+  await delay(150)
+  return sortNewest(readBets())
+}
+
+async function updateBetCloud(bet) {
+  const saved = await saveBetCloud(bet)
+  return saved
 }
 
 export async function cancelBet(betId, reason = 'Voided by admin') {
   await delay()
   const bets = readBets()
-  const bet = bets.find((b) => b.id === betId)
+  const bet = bets.find((b) => String(b.id) === String(betId))
   if (!bet) throw new Error('Bet not found.')
   if (bet.status !== 'pending') throw new Error('Only pending bets can be voided.')
   bet.status = 'cancelled'
   bet.settledAt = new Date().toISOString()
   bet.cancelReason = reason
-  persist(bets)
+  persistLocal(bets)
+  await updateBetCloud(bet)
   await refundStake(bet.stake, `Bet #BV${bet.id} voided`, bet.userId)
-  createNotification({
+  await createNotification({
     type: 'system',
     title: 'Bet voided',
     text: `Bet #BV${bet.id} was voided and your stake refunded.`,
+    userId: bet.userId,
   })
   return bet
 }
@@ -171,9 +217,7 @@ export async function settleBetsForMatch(matchId) {
   let changed = false
 
   const affected = bets.filter(
-    (b) =>
-      b.status === 'pending' &&
-      b.selections.some((s) => s.matchId === matchId),
+    (b) => b.status === 'pending' && b.selections.some((s) => s.matchId === matchId),
   )
 
   for (const bet of affected) {
@@ -182,11 +226,14 @@ export async function settleBetsForMatch(matchId) {
       bet.status = 'cancelled'
       bet.settledAt = new Date().toISOString()
       changed = true
+      persistLocal(bets)
+      await updateBetCloud(bet)
       await refundStake(bet.stake, `Bet #BV${bet.id} voided`, bet.userId)
-      createNotification({
+      await createNotification({
         type: 'system',
         title: 'Bet voided',
         text: `Bet #BV${bet.id} was voided and your stake refunded.`,
+        userId: bet.userId,
       })
       continue
     }
@@ -201,11 +248,26 @@ export async function settleBetsForMatch(matchId) {
     bet.status = won ? 'won' : 'lost'
     bet.settledAt = new Date().toISOString()
     changed = true
+    persistLocal(bets)
+    await updateBetCloud(bet)
     if (won) {
       await creditWinnings(bet.potentialWin, `Bet #BV${bet.id} won`, bet.userId)
+      await createNotification({
+        type: 'win',
+        title: 'Bet won',
+        text: `Bet #BV${bet.id} won. ${bet.potentialWin} was credited to your wallet.`,
+        userId: bet.userId,
+      })
+    } else {
+      await createNotification({
+        type: 'bet',
+        title: 'Bet lost',
+        text: `Bet #BV${bet.id} did not win this time.`,
+        userId: bet.userId,
+      })
     }
   }
 
-  if (changed) persist(bets)
+  if (changed) persistLocal(bets)
   return changed
 }

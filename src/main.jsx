@@ -17,7 +17,7 @@ if ('serviceWorker' in navigator) {
   })
 }
 
-// Seed Firestore with the demo catalogue and hydrate localStorage from it.
+// Hydrate the public match catalogue, promotions and banners from Firestore.
 // Fire-and-forget so it never blocks first paint.
 bootstrapFirestore()
 

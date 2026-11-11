@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getNotifications, markAllRead, markRead } from '../services/notificationService'
+import { subscribeNotifications } from '../services/cloudSync'
+import { getSession } from '../services/authService'
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState([])
@@ -13,21 +15,26 @@ export function useNotifications() {
 
   useEffect(() => {
     let active = true
-    getNotifications().then((data) => {
-      if (active) {
-        setNotifications(data)
-        setLoading(false)
-      }
-    })
-    const onNotify = () => {
+    const load = () =>
       getNotifications().then((data) => {
-        if (active) setNotifications(data)
+        if (active) {
+          setNotifications(data)
+          setLoading(false)
+        }
       })
-    }
+
+    load()
+
+    const onNotify = () => load()
     window.addEventListener('betvora:notify', onNotify)
+
+    const uid = getSession()?.id
+    const unsubscribe = subscribeNotifications(uid, onNotify)
+
     return () => {
       active = false
       window.removeEventListener('betvora:notify', onNotify)
+      unsubscribe()
     }
   }, [])
 

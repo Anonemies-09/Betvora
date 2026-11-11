@@ -41,7 +41,7 @@ export default function Splash() {
       </div>
 
       <p className="pb-8 text-center text-xs text-white/35">
-        Demo betting — no real money involved
+        18+ only — bet responsibly
       </p>
     </div>
   )

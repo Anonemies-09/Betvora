@@ -41,7 +41,7 @@ export default function PromotionsPage() {
         </div>
       )}
       <p className="rounded-xl border border-white/5 bg-royal p-4 text-center text-xs text-white/40">
-        Promotions are demo offers — redemption is not available in this version.
+        Offers are subject to availability and the specific terms shown on each promotion.
       </p>
     </div>
   )

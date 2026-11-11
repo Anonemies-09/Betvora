@@ -1,37 +1,34 @@
-﻿// Wallet service. Backed by localStorage, keyed per user, and (when
-// Firebase is configured) mirrored to Firestore per user.
+﻿// Wallet service.
 //
-// The betting engine uses these same functions; they operate on the
-// wallet of the user identified by the optional `userId` argument, or
-// the currently signed-in user when omitted.
+// Firestore (`wallets/{uid}`) is the shared source of truth; localStorage is
+// the synchronous cache. Every mutation writes locally first (instant UI) and
+// then commits to Firestore so the same user sees the same balance on every
+// device and admins can credit a wallet remotely.
+//
+// The betting engine uses these same functions; they operate on the wallet of
+// the user identified by the optional `userId` argument, or the currently
+// signed-in user when omitted.
 
 import { createNotification } from './notificationService'
 import { currencySymbol } from '../utils/format'
-import { COLLECTIONS, mirrorPersistOne } from './firestoreService'
+import { CLOUD, cloudEnabled, cloudSet, hydrateWallet } from './cloudSync'
 
 const WALLETS_KEY = 'betvora_wallets'
 const LEGACY_WALLET_KEY = 'betvora_wallet'
 const BONUS_CLAIMED_KEY = 'betvora_bonus_claimed'
 
-function delay(ms = 350) {
+function delay(ms = 250) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function iso(daysAgo = 0, hoursAgo = 0) {
-  const d = new Date()
-  d.setDate(d.getDate() - daysAgo)
-  d.setHours(d.getHours() - hoursAgo)
-  return d.toISOString()
-}
-
 function getCurrentUserId() {
-  if (typeof localStorage === 'undefined') return 'u001'
+  if (typeof localStorage === 'undefined') return ''
   try {
     const raw = localStorage.getItem('betvora_session')
     const session = raw ? JSON.parse(raw) : null
-    return session?.id || 'u001'
+    return session?.id || ''
   } catch {
-    return 'u001'
+    return ''
   }
 }
 
@@ -52,8 +49,8 @@ function readWallets() {
     const legacy = localStorage.getItem(LEGACY_WALLET_KEY)
     if (legacy) {
       const parsed = JSON.parse(legacy)
-      const uid = parsed?.id || 'u001'
-      const wallets = { [uid]: { ...parsed, id: uid } }
+      const uid = parsed?.id || getCurrentUserId()
+      const wallets = uid ? { [uid]: { ...parsed, id: uid } } : {}
       localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets))
       return wallets
     }
@@ -66,7 +63,11 @@ function readWallets() {
 
 function writeWallets(wallets) {
   if (typeof localStorage === 'undefined') return
-  localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets))
+  try {
+    localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets))
+  } catch {
+    /* ignore quota errors */
+  }
 }
 
 function defaultWallet(userId) {
@@ -81,174 +82,230 @@ function defaultWallet(userId) {
 
 export function readWallet(userId) {
   const uid = userId || getCurrentUserId()
+  if (!uid) return defaultWallet('')
   const wallets = readWallets()
   if (!wallets[uid]) {
     wallets[uid] = defaultWallet(uid)
     writeWallets(wallets)
-    mirrorPersistOne(COLLECTIONS.wallets, uid, wallets[uid])
   }
   return wallets[uid]
 }
 
 export function readAllWallets() {
-  const wallets = readWallets()
-  return Object.values(wallets)
+  return Object.values(readWallets())
 }
 
-export function writeWallet(userId, wallet) {
-  const uid = userId || wallet?.id || getCurrentUserId()
-  const wallets = readWallets()
+function saveLocal(uid, wallet) {
   wallet.id = uid
+  const wallets = readWallets()
   wallets[uid] = wallet
   writeWallets(wallets)
-  mirrorPersistOne(COLLECTIONS.wallets, uid, wallet)
   return wallet
+}
+
+/** Synchronous local save plus a background cloud write. */
+export function writeWallet(userId, wallet) {
+  const uid = userId || wallet?.id || getCurrentUserId()
+  if (!uid) return wallet
+  saveLocal(uid, wallet)
+  void cloudSet(CLOUD.wallets, uid, wallet)
+  return wallet
+}
+
+/** Local save plus an awaited cloud write; returns whether the cloud accepted it. */
+async function commitWallet(uid, wallet) {
+  saveLocal(uid, wallet)
+  return cloudSet(CLOUD.wallets, uid, wallet)
 }
 
 export async function getWalletData(userId) {
-  await delay()
-  return readWallet(userId)
+  const uid = userId || getCurrentUserId()
+  if (!uid) return defaultWallet('')
+  // Pull the shared copy first so a new device sees the real balance.
+  await hydrateWallet(uid)
+  await delay(120)
+  return readWallet(uid)
+}
+
+export async function refreshWallet(userId) {
+  return getWalletData(userId)
 }
 
 export async function setCurrency(currency, userId) {
-  await delay()
+  await delay(120)
   const uid = userId || getCurrentUserId()
+  if (!uid) return defaultWallet('')
   const wallet = readWallet(uid)
   wallet.currency = currency
-  writeWallet(uid, wallet)
+  await commitWallet(uid, wallet)
   return wallet
 }
 
-function pushTransaction(wallet, { type, amount, note }) {
+function pushTransaction(wallet, { type, amount, note, method }) {
   wallet.transactions.unshift({
-    id: `tx${Date.now()}`,
+    id: `tx${Date.now()}${Math.floor(Math.random() * 1000)}`,
     type,
     amount,
     note,
+    method,
     createdAt: new Date().toISOString(),
   })
+  // Keep the ledger bounded so a wallet document stays small.
+  if (wallet.transactions.length > 400) wallet.transactions.length = 400
+}
+
+function payload(value, options) {
+  return {
+    method: options.method,
+    account: options.account,
+  }
 }
 
 export async function deposit(amount, options = {}) {
-  await delay()
+  await delay(150)
   const value = Number(amount)
   if (!value || value <= 0) throw new Error('Enter a valid amount.')
   const uid = options.userId || getCurrentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
   const wallet = readWallet(uid)
-  wallet.balance += value
-  const method = options.method
-  const account = options.account
+  wallet.balance = Number(wallet.balance || 0) + value
+  const { method, account } = payload(value, options)
   pushTransaction(wallet, {
     type: 'deposit',
     amount: value,
     note: method ? `Deposit via ${method}${account ? ` - ${account}` : ''}` : 'Deposit',
     method,
   })
-  writeWallet(uid, wallet)
-  if (uid === getCurrentUserId()) {
-    createNotification({
-      type: 'wallet',
-      title: 'Deposit successful',
-      text: `Your wallet was credited with ${currencySymbol(wallet.currency)}${value.toLocaleString()}.00.`,
-    })
-  }
+  await commitWallet(uid, wallet)
+  await createNotification({
+    type: 'wallet',
+    title: 'Deposit successful',
+    text: `Your wallet was credited with ${currencySymbol(wallet.currency)}${value.toLocaleString()}.00.`,
+    userId: uid,
+  })
   return wallet
 }
 
 export async function withdraw(amount, options = {}) {
-  await delay()
+  await delay(150)
   const value = Number(amount)
   if (!value || value <= 0) throw new Error('Enter a valid amount.')
   const uid = options.userId || getCurrentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
   const wallet = readWallet(uid)
-  if (value > wallet.balance) throw new Error('Insufficient balance.')
-  wallet.balance -= value
-  const method = options.method
-  const account = options.account
+  if (value > Number(wallet.balance || 0)) throw new Error('Insufficient balance.')
+  wallet.balance = Number(wallet.balance || 0) - value
+  const { method, account } = payload(value, options)
   pushTransaction(wallet, {
     type: 'withdraw',
     amount: -value,
     note: method ? `Withdrawal to ${method}${account ? ` - ${account}` : ''}` : 'Withdrawal',
     method,
   })
-  writeWallet(uid, wallet)
-  if (uid === getCurrentUserId()) {
-    createNotification({
-      type: 'wallet',
-      title: 'Withdrawal processed',
-      text: `${currencySymbol(wallet.currency)}${value.toLocaleString()}.00 was withdrawn from your wallet.`,
-    })
-  }
+  await commitWallet(uid, wallet)
+  await createNotification({
+    type: 'wallet',
+    title: 'Withdrawal processed',
+    text: `${currencySymbol(wallet.currency)}${value.toLocaleString()}.00 was withdrawn from your wallet.`,
+    userId: uid,
+  })
   return wallet
 }
 
 export async function claimBonus(userId) {
-  await delay()
+  await delay(150)
   const uid = userId || getCurrentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
   const wallet = readWallet(uid)
   const key = `${BONUS_CLAIMED_KEY}_${uid}`
-  if (localStorage.getItem(key)) {
+  if (wallet.bonusClaimed || localStorage.getItem(key)) {
     throw new Error('Welcome bonus already claimed.')
   }
   const value = 100000
-  wallet.bonus += value
+  wallet.bonus = Number(wallet.bonus || 0) + value
+  wallet.bonusClaimed = true
   pushTransaction(wallet, { type: 'bonus', amount: value, note: '100% Welcome Bonus claimed' })
-  localStorage.setItem(key, 'true')
-  writeWallet(uid, wallet)
-  if (uid === getCurrentUserId()) {
-    createNotification({
-      type: 'wallet',
-      title: 'Welcome bonus claimed',
-      text: `${currencySymbol(wallet.currency)}${value.toLocaleString()}.00 added to your bonus wallet.`,
-    })
+  try {
+    localStorage.setItem(key, 'true')
+  } catch {
+    /* ignore */
   }
+  await commitWallet(uid, wallet)
+  await createNotification({
+    type: 'wallet',
+    title: 'Welcome bonus claimed',
+    text: `${currencySymbol(wallet.currency)}${value.toLocaleString()}.00 added to your bonus wallet.`,
+    userId: uid,
+  })
   return wallet
 }
 
 export async function deductForBet(amount, note, userId) {
-  await delay()
+  await delay(120)
   const value = Number(amount)
   const uid = userId || getCurrentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
   const wallet = readWallet(uid)
-  if (value > wallet.balance) throw new Error('Insufficient balance.')
-  wallet.balance -= value
+  if (value > Number(wallet.balance || 0)) throw new Error('Insufficient balance.')
+  const previous = { balance: wallet.balance, transactions: [...(wallet.transactions || [])] }
+  wallet.balance = Number(wallet.balance || 0) - value
   pushTransaction(wallet, { type: 'bet', amount: -value, note })
-  writeWallet(uid, wallet)
+  const saved = await commitWallet(uid, wallet)
+  if (cloudEnabled() && !saved) {
+    // Roll the cache back so the UI never shows a stake that was not recorded.
+    wallet.balance = previous.balance
+    wallet.transactions = previous.transactions
+    saveLocal(uid, wallet)
+    throw new Error('Could not reach the wallet server. Your stake was not taken.')
+  }
   return wallet
 }
 
 export async function creditWinnings(amount, note, userId) {
-  await delay()
+  await delay(120)
   const value = Number(amount)
   const uid = userId || getCurrentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
   const wallet = readWallet(uid)
-  wallet.balance += value
+  wallet.balance = Number(wallet.balance || 0) + value
   pushTransaction(wallet, { type: 'win', amount: value, note })
-  writeWallet(uid, wallet)
-  if (uid === getCurrentUserId()) {
-    createNotification({
-      type: 'win',
-      title: 'Bet won',
-      text: `${note} — ${currencySymbol(wallet.currency)}${value.toLocaleString()}.00 credited to your wallet.`,
-    })
-  }
+  await commitWallet(uid, wallet)
+  await createNotification({
+    type: 'win',
+    title: 'Bet won',
+    text: `${note} — ${currencySymbol(wallet.currency)}${value.toLocaleString()}.00 credited to your wallet.`,
+    userId: uid,
+  })
+  return wallet
+}
+
+/** Credit a game (casino/slot) win without a betting-slip notification. */
+export async function creditGameWinnings(amount, note, userId) {
+  await delay(120)
+  const value = Number(amount)
+  const uid = userId || getCurrentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
+  const wallet = readWallet(uid)
+  wallet.balance = Number(wallet.balance || 0) + value
+  pushTransaction(wallet, { type: 'win', amount: value, note })
+  await commitWallet(uid, wallet)
   return wallet
 }
 
 export async function refundStake(amount, note, userId) {
-  await delay()
+  await delay(120)
   const value = Number(amount)
   const uid = userId || getCurrentUserId()
+  if (!uid) throw new Error('You need to be signed in.')
   const wallet = readWallet(uid)
-  wallet.balance += value
+  wallet.balance = Number(wallet.balance || 0) + value
   pushTransaction(wallet, { type: 'refund', amount: value, note })
-  writeWallet(uid, wallet)
-  if (uid === getCurrentUserId()) {
-    createNotification({
-      type: 'system',
-      title: 'Bet refunded',
-      text: `${note} — ${currencySymbol(wallet.currency)}${value.toLocaleString()}.00 returned to your wallet.`,
-    })
-  }
+  await commitWallet(uid, wallet)
+  await createNotification({
+    type: 'system',
+    title: 'Bet refunded',
+    text: `${note} — ${currencySymbol(wallet.currency)}${value.toLocaleString()}.00 returned to your wallet.`,
+    userId: uid,
+  })
   return wallet
 }

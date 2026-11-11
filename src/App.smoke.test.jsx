@@ -1,8 +1,45 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createRoot } from 'react-dom/client'
 import Root from './App'
+
+// The smoke tests seed a localStorage session only. Real Firebase sessions
+// cannot exist in jsdom, so restore the cached session and keep all cloud
+// traffic local for deterministic, offline test runs.
+vi.mock('./services/authService', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    restoreSession: async () => {
+      try {
+        return JSON.parse(localStorage.getItem('betvora_session'))
+      } catch {
+        return null
+      }
+    },
+  }
+})
+
+vi.mock('./services/cloudSync', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    cloudEnabled: () => false,
+    cloudGet: async () => null,
+    cloudList: async () => null,
+    cloudListByUser: async () => null,
+    cloudSet: async () => true,
+    cloudDelete: async () => true,
+    hydrateUserData: async () => {},
+    hydrateWallet: async () => {},
+    ensureWalletDoc: async () => {},
+    hydratePublicData: async () => {},
+    pullStaffData: async () => {},
+    subscribeWallet: () => () => {},
+    subscribeNotifications: () => () => {},
+  }
+})
 
 const roots = []
 

@@ -2,7 +2,7 @@
 //
 // Every service talks to Firebase only through this module so the app
 // never imports `firebase/*` directly. When VITE_FIREBASE_* env vars are
-// unset the app runs fully on localStorage (demo/offline mode).
+// unset the app runs on localStorage only (offline fallback).
 //
 // To go live:
 //   1. Create a Firebase web app in the console (Project settings → Your apps).
@@ -10,7 +10,7 @@
 //   3. The firebase SDK is loaded lazily on first use, so an empty config
 //      costs nothing at runtime.
 
-const config = {
+export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -19,7 +19,9 @@ const config = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 }
 
-export const isFirebaseConfigured = Boolean(config.apiKey && config.projectId && config.appId)
+export const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId,
+)
 
 let initPromise = null
 
@@ -36,7 +38,7 @@ export async function ensureFirebase() {
         import('firebase/auth'),
         import('firebase/firestore'),
       ])
-      const app = getApps().length ? getApps()[0] : initializeApp(config)
+      const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
       return { app, auth: getAuth(app), db: getFirestore(app) }
     })()
   }

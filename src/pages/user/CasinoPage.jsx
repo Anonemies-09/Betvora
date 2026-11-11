@@ -8,35 +8,51 @@ import Modal from '../../components/common/Modal'
 import Tabs from '../../components/common/Tabs'
 import { CASINO_CATEGORIES, CRASH_GAMES, GAME_BANNER } from '../../data/gamesData'
 import { useWallet } from '../../context/WalletContext'
+import { useAuth } from '../../context/AuthContext'
+import * as walletService from '../../services/walletService'
 import { formatCurrency } from '../../utils/format'
 import { cn } from '../../utils/cn'
 
 const CRASH_IDS = CRASH_GAMES.map((g) => g.id)
 
-function GameDemoModal({ game, open, onClose }) {
-  const { deposit, withdraw, currency } = useWallet()
+function GameModal({ game, open, onClose }) {
+  const { currency, refresh } = useWallet()
+  const { user } = useAuth()
   const [stake, setStake] = useState(100)
   const [phase, setPhase] = useState('idle') // idle | spinning | win | lose
   const [multiplier, setMultiplier] = useState(1)
+  const [error, setError] = useState('')
 
   const play = async () => {
     if (phase === 'spinning') return
+    setError('')
     setPhase('spinning')
     setMultiplier(1)
+    try {
+      // Take the stake from the real wallet before the result is drawn.
+      await walletService.deductForBet(stake, `${game?.name || 'Casino'} spin stake`, user?.id)
+    } catch (err) {
+      setError(err.message)
+      setPhase('idle')
+      return
+    }
     await new Promise((r) => setTimeout(r, 1400))
     const roll = Math.random()
     const mult = roll < 0.45 ? 0 : roll < 0.7 ? 1.2 : roll < 0.85 ? 2 : roll < 0.95 ? 3.5 : 6
     setMultiplier(mult)
     try {
-      if (mult === 0) {
-        await withdraw(stake)
-        setPhase('lose')
-      } else {
-        await deposit(Math.round(stake * mult))
-        setPhase('win')
+      if (mult > 0) {
+        await walletService.creditGameWinnings(
+          Math.round(stake * mult),
+          `${game?.name || 'Casino'} win at ${mult}x`,
+          user?.id,
+        )
       }
-    } catch {
-      setPhase('lose')
+      await refresh()
+      setPhase(mult === 0 ? 'lose' : 'win')
+    } catch (err) {
+      setError(err.message)
+      setPhase(mult === 0 ? 'lose' : 'win')
     }
   }
 
@@ -70,6 +86,12 @@ function GameDemoModal({ game, open, onClose }) {
             {phase === 'spinning' && <Badge tone="blue">Resolving…</Badge>}
           </div>
         </div>
+
+        {error && (
+          <p className="rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+            {error}
+          </p>
+        )}
 
         <div className="grid grid-cols-4 gap-2">
           {[50, 100, 500, 1000].map((value) => (
@@ -190,7 +212,7 @@ export default function CasinoPage() {
         <Button onClick={() => navigate('/crash')}>Open Crash Games</Button>
       </section>
 
-      <GameDemoModal game={selected} open={selected !== null} onClose={() => setSelected(null)} />
+      <GameModal game={selected} open={selected !== null} onClose={() => setSelected(null)} />
     </div>
   )
 }

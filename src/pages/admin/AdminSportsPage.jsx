@@ -27,6 +27,7 @@ import {
 } from '../../services/matchService'
 import { settleBetsForMatch } from '../../services/betService'
 import { isAutoFeedEnabled, setAutoFeedEnabled, autoScheduleFixtures } from '../../services/fixtureService'
+import { hydratePublicData, pullStaffData } from '../../services/cloudSync'
 import { LEAGUES } from '../../data/catalogue'
 import { formatDate, formatTime, formatOdds, flagEmoji } from '../../utils/format'
 import { cn } from '../../utils/cn'
@@ -61,7 +62,14 @@ export default function AdminSportsPage() {
     })
 
   useEffect(() => {
-    load()
+    let active = true
+    ;(async () => {
+      await hydratePublicData()
+      if (active) load()
+    })()
+    return () => {
+      active = false
+    }
   }, [])
 
   const flash = (text) => {
@@ -108,6 +116,8 @@ export default function AdminSportsPage() {
       return
     }
     await endMatch(selected.id, { home, away })
+    // Pull every user's bets before evaluating so settlement reaches all of them.
+    await pullStaffData()
     const settled = await settleBetsForMatch(selected.id)
     setModal(null)
     await load()
@@ -117,6 +127,7 @@ export default function AdminSportsPage() {
   const makeVoid = async (match) => {
     if (!window.confirm(`Void ${match.homeTeam} vs ${match.awayTeam}? Pending bets on it are refunded.`)) return
     await voidMatch(match.id)
+    await pullStaffData()
     await settleBetsForMatch(match.id)
     await load()
     flash('Match voided — stakes refunded.')

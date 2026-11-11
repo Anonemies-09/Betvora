@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { useAuth } from './AuthContext'
 import * as walletService from '../services/walletService'
+import { subscribeWallet } from '../services/cloudSync'
 
 const WalletContext = createContext(null)
 
@@ -13,6 +14,14 @@ export function WalletProvider({ children }) {
 
   useEffect(() => {
     let active = true
+    if (!userId) {
+      setWallet(null)
+      setLoading(false)
+      return () => {
+        active = false
+      }
+    }
+
     setLoading(true)
     walletService
       .getWalletData(userId)
@@ -22,22 +31,35 @@ export function WalletProvider({ children }) {
       .finally(() => {
         if (active) setLoading(false)
       })
+
+    // Live updates: an admin credit or a bet settled elsewhere lands here.
+    const unsubscribe = subscribeWallet(userId, (data) => {
+      if (active) setWallet(data)
+    })
+
     return () => {
       active = false
+      unsubscribe()
     }
   }, [userId])
 
-  const deposit = useCallback(async (amount, options) => {
-    const data = await walletService.deposit(amount, { ...options, userId })
-    if (data?.id === userId || !userId) setWallet(data)
-    return data
-  }, [userId])
+  const deposit = useCallback(
+    async (amount, options) => {
+      const data = await walletService.deposit(amount, { ...options, userId })
+      if (data?.id === userId || !userId) setWallet(data)
+      return data
+    },
+    [userId],
+  )
 
-  const withdraw = useCallback(async (amount, options) => {
-    const data = await walletService.withdraw(amount, { ...options, userId })
-    setWallet(data)
-    return data
-  }, [userId])
+  const withdraw = useCallback(
+    async (amount, options) => {
+      const data = await walletService.withdraw(amount, { ...options, userId })
+      setWallet(data)
+      return data
+    },
+    [userId],
+  )
 
   const claimBonus = useCallback(async () => {
     const data = await walletService.claimBonus(userId)
@@ -51,11 +73,14 @@ export function WalletProvider({ children }) {
     return data
   }, [userId])
 
-  const setCurrency = useCallback(async (currency) => {
-    const data = await walletService.setCurrency(currency, userId)
-    setWallet(data)
-    return data
-  }, [userId])
+  const setCurrency = useCallback(
+    async (currency) => {
+      const data = await walletService.setCurrency(currency, userId)
+      setWallet(data)
+      return data
+    },
+    [userId],
+  )
 
   const value = useMemo(
     () => ({

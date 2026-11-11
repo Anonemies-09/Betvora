@@ -149,7 +149,7 @@ export default function SettingsPage() {
         <div className="flex items-center justify-between gap-4 px-4 py-4">
           <div>
             <p className="text-sm font-bold text-white">Display currency</p>
-            <p className="mt-0.5 text-xs text-white/40">Demo balance formatting</p>
+            <p className="mt-0.5 text-xs text-white/40">Balance formatting</p>
           </div>
           <div className="relative">
             <select

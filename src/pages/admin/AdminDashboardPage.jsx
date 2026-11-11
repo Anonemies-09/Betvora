@@ -5,13 +5,14 @@ import { useAuth } from '../../context/AuthContext'
 import { getAllUsers } from '../../services/userService'
 import { getAllBets } from '../../services/betService'
 import { readAllWallets } from '../../services/walletService'
+import { pullStaffData } from '../../services/cloudSync'
 
 const STAT_DEFS = [
   { key: 'users', label: 'Users', icon: Users, color: 'text-gold' },
   { key: 'activeBets', label: 'Active Bets', icon: ReceiptText, color: 'text-success' },
-  { key: 'pendingBets', label: 'Pending Bets', icon: Clock, color: 'text-sky-300' },
-  { key: 'settled', label: 'Settled Bets', icon: Trophy, color: 'text-gold' },
+  { key: 'settled', label: 'Settled Bets', icon: Clock, color: 'text-sky-300' },
   { key: 'deposits', label: 'Deposits', icon: Coins, color: 'text-success' },
+  { key: 'payouts', label: 'Payouts', icon: Trophy, color: 'text-gold' },
 ]
 
 export default function AdminDashboardPage() {
@@ -19,29 +20,42 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
     users: 0,
     activeBets: 0,
-    pendingBets: 0,
     settled: 0,
     deposits: 0,
+    payouts: 0,
   })
 
   useEffect(() => {
     let active = true
-    Promise.all([getAllUsers(), getAllBets()]).then(([users, bets]) => {
+    ;(async () => {
+      await pullStaffData()
+      const [users, bets] = await Promise.all([getAllUsers(), getAllBets()])
       if (!active) return
       const wallets = readAllWallets()
       const deposits = wallets.reduce(
         (total, w) =>
-          total + (w.transactions || []).filter((t) => t.type === 'deposit').reduce((s, t) => s + Math.abs(t.amount), 0),
+          total +
+          (w.transactions || [])
+            .filter((t) => t.type === 'deposit')
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0),
+        0,
+      )
+      const payouts = wallets.reduce(
+        (total, w) =>
+          total +
+          (w.transactions || [])
+            .filter((t) => t.type === 'win')
+            .reduce((sum, t) => sum + Math.abs(t.amount), 0),
         0,
       )
       setStats({
-        users: users.length,
-        activeBets: bets.filter((b) => b.status === 'pending').length + 823,
-        pendingBets: bets.filter((b) => b.status === 'pending').length + 210,
-        settled: bets.filter((b) => b.status === 'won' || b.status === 'lost').length + 540,
+        users: users.filter((u) => u.role === 'user').length,
+        activeBets: bets.filter((b) => b.status === 'pending').length,
+        settled: bets.filter((b) => b.status === 'won' || b.status === 'lost').length,
         deposits,
+        payouts,
       })
-    })
+    })()
     return () => {
       active = false
     }
@@ -61,7 +75,9 @@ export default function AdminDashboardPage() {
           <Card key={stat.key} className="p-4">
             <stat.icon className={`h-5 w-5 ${stat.color}`} />
             <p className="mt-3 text-2xl font-black text-white">
-              {stat.key === 'deposits' ? `₵${stats[stat.key].toLocaleString()}` : stats[stat.key].toLocaleString()}
+              {stat.key === 'deposits' || stat.key === 'payouts'
+                ? `₵${stats[stat.key].toLocaleString()}`
+                : stats[stat.key].toLocaleString()}
             </p>
             <p className="mt-0.5 text-xs font-semibold uppercase tracking-wide text-white/40">
               {stat.label}

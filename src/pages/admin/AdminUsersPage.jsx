@@ -7,6 +7,7 @@ import Input from '../../components/common/Input'
 import EmptyState from '../../components/common/EmptyState'
 import { getAllUsers, setUserVerified, setUserSuspended, setUserRole, deleteUser, createUser } from '../../services/userService'
 import * as walletService from '../../services/walletService'
+import { pullStaffData } from '../../services/cloudSync'
 import Modal from '../../components/common/Modal'
 import { formatDate } from '../../utils/format'
 
@@ -28,11 +29,12 @@ export default function AdminUsersPage() {
   const [creditAmount, setCreditAmount] = useState('')
   const [creditLoading, setCreditLoading] = useState(false)
 
-  const load = (query = search) =>
-    getAllUsers({ search: query }).then((data) => {
-      setUsers(data)
-      setLoading(false)
-    })
+  const load = async (query = search) => {
+    await pullStaffData()
+    const data = await getAllUsers({ search: query })
+    setUsers(data)
+    setLoading(false)
+  }
 
   useEffect(() => {
     load('')

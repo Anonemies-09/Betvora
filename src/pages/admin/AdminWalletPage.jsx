@@ -6,16 +6,17 @@ import EmptyState from '../../components/common/EmptyState'
 import { useWallet } from '../../context/WalletContext'
 import { formatCurrency, formatDate } from '../../utils/format'
 import {
-  getDepositRequests,
   approveDepositRequest,
   rejectDepositRequest,
+  refreshDepositRequests,
 } from '../../services/depositService'
 import {
-  getWithdrawalRequests,
   completeWithdrawalRequest,
   rejectWithdrawalRequest,
+  refreshWithdrawalRequests,
 } from '../../services/withdrawalService'
 import { readUsers } from '../../services/authService'
+import { pullStaffData } from '../../services/cloudSync'
 import { cn } from '../../utils/cn'
 
 const TYPE_META = {
@@ -33,9 +34,14 @@ export default function AdminWalletPage() {
   const [withdrawalRequests, setWithdrawalRequests] = useState([])
   const [working, setWorking] = useState(null)
 
-  const loadRequests = () => {
-    setDepositRequests(getDepositRequests())
-    setWithdrawalRequests(getWithdrawalRequests())
+  const loadRequests = async () => {
+    await pullStaffData()
+    const [deposits, withdrawals] = await Promise.all([
+      refreshDepositRequests(),
+      refreshWithdrawalRequests(),
+    ])
+    setDepositRequests(deposits)
+    setWithdrawalRequests(withdrawals)
   }
   useEffect(() => {
     loadRequests()
@@ -46,7 +52,7 @@ export default function AdminWalletPage() {
     try {
       await approveDepositRequest(id)
       await refresh()
-      loadRequests()
+      await loadRequests()
     } finally {
       setWorking(null)
     }
@@ -56,7 +62,7 @@ export default function AdminWalletPage() {
     setWorking(id)
     try {
       await rejectDepositRequest(id, 'Not verified')
-      loadRequests()
+      await loadRequests()
     } finally {
       setWorking(null)
     }
@@ -67,7 +73,7 @@ export default function AdminWalletPage() {
     try {
       await completeWithdrawalRequest(id)
       await refresh()
-      loadRequests()
+      await loadRequests()
     } finally {
       setWorking(null)
     }
@@ -78,7 +84,7 @@ export default function AdminWalletPage() {
     try {
       await rejectWithdrawalRequest(id, 'Not verified')
       await refresh()
-      loadRequests()
+      await loadRequests()
     } finally {
       setWorking(null)
     }
@@ -95,7 +101,7 @@ export default function AdminWalletPage() {
         <h1 className="text-2xl font-black uppercase tracking-tight text-white">
           Wallet & Transactions
         </h1>
-        <p className="mt-1 text-sm text-white/40">Demo ledger for the active account.</p>
+        <p className="mt-1 text-sm text-white/40">Live ledger for the active account.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -191,7 +197,14 @@ export default function AdminWalletPage() {
             </button>
           ))}
         </div>
-        <Button size="sm" variant="secondary" onClick={refresh}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={async () => {
+            await refresh()
+            await loadRequests()
+          }}
+        >
           Refresh
         </Button>
       </div>

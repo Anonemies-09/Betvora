@@ -90,9 +90,7 @@ export default function VerifyOtp() {
 
         <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-white/10 bg-navy-800 p-3 text-xs text-white/50">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-          <span>
-            Demo mode: use code <b className="text-gold">123456</b> — the first 4 digits.
-          </span>
+          <span>Didn&apos;t get the code? Check your spam folder or contact support.</span>
         </div>
 
         <Button type="submit" size="lg" fullWidth className="mt-5" loading={loading}>

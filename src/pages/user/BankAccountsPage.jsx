@@ -84,7 +84,7 @@ export default function BankAccountsPage() {
         <EmptyState
           icon={Landmark}
           title="No bank accounts linked"
-          text="Link a bank account to use it for demo withdrawals and deposits."
+          text="Link a bank account to receive withdrawals."
         />
       ) : (
         <div className="space-y-3">
@@ -119,7 +119,7 @@ export default function BankAccountsPage() {
         open={open}
         onClose={() => setOpen(false)}
         title="Add Bank Account"
-        subtitle="Link a bank account for demo payouts."
+        subtitle="Link a bank account for withdrawals."
       >
         <form onSubmit={addAccount} className="space-y-4">
           <label className="block space-y-1.5">

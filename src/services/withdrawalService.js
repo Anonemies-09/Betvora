@@ -1,43 +1,68 @@
 // Manual withdrawal requests (no payment gateway).
 //
-// A user requests a withdrawal to their mobile money / bank account. The
-// amount is reserved (deducted) immediately so it cannot be spent twice;
-// an admin then completes (pays out) or rejects (refunds) the request.
+// A user requests a payout to their mobile money / bank account. The amount is
+// reserved immediately (deducted from the shared wallet) so it cannot be spent
+// twice; an admin then completes (pays out) or rejects (refunds) the request.
+//
+// Creation, completion and rejection each run as a Firestore transaction so
+// the request state and the wallet can never disagree across devices.
 
 import { createNotification } from './notificationService'
 import * as walletService from './walletService'
-
-const REQUESTS_KEY = 'betvora_withdrawal_requests'
+import * as authService from './authService'
+import {
+  CLOUD,
+  LOCAL,
+  cacheWallet,
+  cloudEnabled,
+  cloudList,
+  cloudTransaction,
+  mergeById,
+  readLocal,
+  writeLocal,
+} from './cloudSync'
+import { currencySymbol } from '../utils/format'
 
 function currentUserId() {
-  try {
-    const raw = localStorage.getItem('betvora_session')
-    return (raw ? JSON.parse(raw) : null)?.id || 'u001'
-  } catch {
-    return 'u001'
-  }
+  return authService.getSession()?.id || ''
 }
 
 function readRequests() {
-  try {
-    const raw = localStorage.getItem(REQUESTS_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    /* fall through */
-  }
-  return []
+  return readLocal(LOCAL.withdrawalRequests, [])
 }
 
 function persist(requests) {
-  localStorage.setItem(REQUESTS_KEY, JSON.stringify(requests))
+  writeLocal(LOCAL.withdrawalRequests, requests)
+}
+
+function upsert(request) {
+  const requests = readRequests()
+  const index = requests.findIndex((r) => r.id === request.id)
+  if (index >= 0) requests[index] = { ...requests[index], ...request }
+  else requests.unshift(request)
+  persist(requests)
+  return request
+}
+
+function sortRequests(requests) {
+  return [...requests].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 }
 
 export function getWithdrawalRequests() {
-  return readRequests().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  return sortRequests(readRequests())
 }
 
 export function getPendingWithdrawalRequests() {
   return getWithdrawalRequests().filter((r) => r.status === 'pending')
+}
+
+/** Pull the shared request queue (used by the admin wallet screen). */
+export async function refreshWithdrawalRequests() {
+  if (cloudEnabled()) {
+    const remote = await cloudList(CLOUD.withdrawalRequests)
+    if (remote) persist(mergeById(readRequests(), remote))
+  }
+  return getWithdrawalRequests()
 }
 
 export async function createWithdrawalRequest({ amount, method, account }) {
@@ -47,23 +72,10 @@ export async function createWithdrawalRequest({ amount, method, account }) {
   if (!account || !account.trim()) throw new Error('Enter the destination account.')
 
   const uid = currentUserId()
-  const wallet = walletService.readWallet(uid)
-  if (value > wallet.balance) throw new Error('Insufficient balance.')
+  if (!uid) throw new Error('You need to be signed in.')
 
-  // Reserve the funds immediately.
-  wallet.balance -= value
-  wallet.transactions.unshift({
-    id: `tx${Date.now()}`,
-    type: 'withdraw',
-    amount: -value,
-    note: `Withdrawal request to ${method} - ${account.trim()} (pending)`,
-    createdAt: new Date().toISOString(),
-  })
-  walletService.writeWallet(uid, wallet)
-
-  const requests = readRequests()
   const request = {
-    id: `wd${Date.now()}`,
+    id: `wd${Date.now()}${Math.floor(Math.random() * 1000)}`,
     userId: uid,
     amount: value,
     method,
@@ -71,65 +83,188 @@ export async function createWithdrawalRequest({ amount, method, account }) {
     status: 'pending',
     createdAt: new Date().toISOString(),
   }
-  requests.unshift(request)
-  persist(requests)
 
-  createNotification({
+  if (cloudEnabled()) {
+    let result
+    try {
+      result = await cloudTransaction(async ({ mod, db, transaction }) => {
+        const walletRef = mod.doc(db, CLOUD.wallets, uid)
+        const walletSnap = await transaction.get(walletRef)
+        const wallet = walletSnap.exists()
+          ? walletSnap.data()
+          : { balance: 0, bonus: 0, currency: 'GHS', transactions: [] }
+        if (value > Number(wallet.balance || 0)) throw new Error('Insufficient balance.')
+        const updated = {
+          ...wallet,
+          id: uid,
+          balance: Number(wallet.balance || 0) - value,
+          transactions: [
+            {
+              id: `tx${Date.now()}${Math.floor(Math.random() * 1000)}`,
+              type: 'withdraw',
+              amount: -value,
+              note: `Withdrawal request to ${method} - ${account.trim()} (pending)`,
+              createdAt: request.createdAt,
+            },
+            ...(wallet.transactions || []),
+          ].slice(0, 400),
+        }
+        transaction.set(walletRef, updated, { merge: true })
+        transaction.set(mod.doc(db, CLOUD.withdrawalRequests, request.id), request)
+        return { wallet: updated }
+      })
+    } catch (err) {
+      throw new Error(err?.message || 'Could not submit your withdrawal. Try again.')
+    }
+
+    cacheWallet(uid, result.wallet)
+    upsert(request)
+    await createNotification({
+      type: 'wallet',
+      title: 'Withdrawal request submitted',
+      text: `Your withdrawal of ${currencySymbol('GHS')}${value.toLocaleString()} is pending processing.`,
+      userId: uid,
+    })
+    return request
+  }
+
+  // Local-only mode.
+  const wallet = walletService.readWallet(uid)
+  if (value > Number(wallet.balance || 0)) throw new Error('Insufficient balance.')
+  wallet.balance = Number(wallet.balance || 0) - value
+  wallet.transactions.unshift({
+    id: `tx${Date.now()}${Math.floor(Math.random() * 1000)}`,
+    type: 'withdraw',
+    amount: -value,
+    note: `Withdrawal request to ${method} - ${account.trim()} (pending)`,
+    createdAt: new Date().toISOString(),
+  })
+  walletService.writeWallet(uid, wallet)
+
+  upsert(request)
+  await createNotification({
     type: 'wallet',
     title: 'Withdrawal request submitted',
-    text: `Your withdrawal of ${value} is pending processing.`,
+    text: `Your withdrawal of ${currencySymbol('GHS')}${value.toLocaleString()} is pending processing.`,
+    userId: uid,
   })
-
   return request
 }
 
 export async function completeWithdrawalRequest(id) {
-  const requests = readRequests()
-  const request = requests.find((r) => r.id === id)
+  const request = readRequests().find((r) => r.id === id)
   if (!request) throw new Error('Withdrawal request not found.')
   if (request.status !== 'pending') throw new Error('This request is no longer pending.')
 
-  request.status = 'completed'
-  request.completedAt = new Date().toISOString()
-  persist(requests)
+  const completedAt = new Date().toISOString()
 
-  createNotification({
+  if (cloudEnabled()) {
+    try {
+      await cloudTransaction(async ({ mod, db, transaction }) => {
+        const ref = mod.doc(db, CLOUD.withdrawalRequests, id)
+        const snap = await transaction.get(ref)
+        if (!snap.exists()) throw new Error('Withdrawal request not found.')
+        if (snap.data().status !== 'pending') throw new Error('This request is no longer pending.')
+        transaction.set(
+          ref,
+          { status: 'completed', completedAt, completedBy: currentUserId() || null },
+          { merge: true },
+        )
+        return true
+      })
+    } catch (err) {
+      throw new Error(err?.message || 'Could not complete the withdrawal. Try again.')
+    }
+  }
+
+  request.status = 'completed'
+  request.completedAt = completedAt
+  upsert(request)
+
+  await createNotification({
     type: 'wallet',
     title: 'Withdrawal completed',
-    text: `Your withdrawal of ${request.amount} has been processed.`,
+    text: `Your withdrawal of ${currencySymbol('GHS')}${Number(request.amount).toLocaleString()} has been processed.`,
+    userId: request.userId,
   })
 
   return request
 }
 
 export async function rejectWithdrawalRequest(id, reason = '') {
-  const requests = readRequests()
-  const request = requests.find((r) => r.id === id)
+  const request = readRequests().find((r) => r.id === id)
   if (!request) throw new Error('Withdrawal request not found.')
   if (request.status !== 'pending') throw new Error('This request is no longer pending.')
 
-  // Refund the reserved funds.
-  const uid = request.userId
-  const wallet = walletService.readWallet(uid)
-  wallet.balance += request.amount
-  wallet.transactions.unshift({
-    id: `tx${Date.now()}`,
-    type: 'refund',
-    amount: request.amount,
-    note: `Withdrawal request rejected - refund${reason ? `: ${reason}` : ''}`,
-    createdAt: new Date().toISOString(),
-  })
-  walletService.writeWallet(uid, wallet)
+  const rejectedAt = new Date().toISOString()
+
+  if (cloudEnabled()) {
+    let result
+    try {
+      result = await cloudTransaction(async ({ mod, db, transaction }) => {
+        const ref = mod.doc(db, CLOUD.withdrawalRequests, id)
+        const snap = await transaction.get(ref)
+        if (!snap.exists()) throw new Error('Withdrawal request not found.')
+        const remote = { id: snap.id, ...snap.data() }
+        if (remote.status !== 'pending') throw new Error('This request is no longer pending.')
+
+        const walletRef = mod.doc(db, CLOUD.wallets, remote.userId)
+        const walletSnap = await transaction.get(walletRef)
+        const wallet = walletSnap.exists()
+          ? walletSnap.data()
+          : { balance: 0, bonus: 0, currency: 'GHS', transactions: [] }
+        const value = Number(remote.amount)
+        const updated = {
+          ...wallet,
+          id: remote.userId,
+          balance: Number(wallet.balance || 0) + value,
+          transactions: [
+            {
+              id: `tx${Date.now()}${Math.floor(Math.random() * 1000)}`,
+              type: 'refund',
+              amount: value,
+              note: `Withdrawal request rejected - refund${reason ? `: ${reason}` : ''}`,
+              createdAt: rejectedAt,
+            },
+            ...(wallet.transactions || []),
+          ].slice(0, 400),
+        }
+        transaction.set(walletRef, updated, { merge: true })
+        transaction.set(
+          ref,
+          { status: 'rejected', rejectedAt, rejectedBy: currentUserId() || null, reason },
+          { merge: true },
+        )
+        return { wallet: updated }
+      })
+    } catch (err) {
+      throw new Error(err?.message || 'Could not reject the withdrawal. Try again.')
+    }
+    cacheWallet(result.wallet.id, result.wallet)
+  } else {
+    // Local-only mode: return the reserved funds.
+    const wallet = walletService.readWallet(request.userId)
+    wallet.balance = Number(wallet.balance || 0) + Number(request.amount)
+    wallet.transactions.unshift({
+      id: `tx${Date.now()}${Math.floor(Math.random() * 1000)}`,
+      type: 'refund',
+      amount: request.amount,
+      note: `Withdrawal request rejected - refund${reason ? `: ${reason}` : ''}`,
+      createdAt: new Date().toISOString(),
+    })
+    walletService.writeWallet(request.userId, wallet)
+  }
 
   request.status = 'rejected'
-  request.rejectedAt = new Date().toISOString()
+  request.rejectedAt = rejectedAt
   request.reason = reason
-  persist(requests)
+  upsert(request)
 
-  createNotification({
+  await createNotification({
     type: 'wallet',
     title: 'Withdrawal rejected',
-    text: `Your withdrawal request for ${request.amount} was rejected${reason ? `: ${reason}` : '.'}`,
+    text: `Your withdrawal request for ${currencySymbol('GHS')}${Number(request.amount).toLocaleString()} was rejected${reason ? `: ${reason}` : '.'}`,
+    userId: request.userId,
   })
 
   return request

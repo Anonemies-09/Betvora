@@ -40,8 +40,8 @@ export default function ReferralPage() {
           <h2 className="text-lg font-black text-white">Earn on every referral</h2>
         </div>
         <p className="mt-4 text-sm text-white/50">
-          Share your code. When a friend joins and bets, you earn a bonus. (Demo — no real
-          payouts.)
+          Share your code. When a friend joins and bets, you earn a bonus credited to your
+          wallet.
         </p>
         <div className="mt-5 rounded-xl border border-dashed border-gold/40 bg-navy-800 p-4 text-center">
           <p className="text-3xl font-black tracking-widest text-gold">{code}</p>

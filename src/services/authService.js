@@ -1,21 +1,39 @@
-// Auth service. Backed by localStorage (auto-fallback demo mode) and, when
-// VITE_FIREBASE_* is configured, Firebase Authentication with the local
-// store kept as the working profile mirror.
+// Auth service.
+//
+// Firebase Authentication owns credentials; Firestore owns the shared profile
+// (`users/{uid}`). localStorage keeps a synchronous profile/session cache so
+// the UI can render instantly and the app still works on a flaky connection.
+//
+// Existing accounts that were created in an earlier localStorage-only build
+// are migrated the first time their owner signs in: the Firebase Auth account
+// is created with the same credentials and their local money data is moved to
+// the new uid.
 
-// no demo accounts in live mode
-import { isFirebaseConfigured, ensureFirebase } from './firebase'
-import { COLLECTIONS, mirrorPersist, writeDoc } from './firestoreService'
+import { isFirebaseConfigured, ensureFirebase, firebaseConfig } from './firebase'
+import {
+  CLOUD,
+  LOCAL,
+  cloudGet,
+  cloudSet,
+  ensureWalletDoc,
+  hydrateUserData,
+  readLocal,
+  writeLocal,
+} from './cloudSync'
 
-const USERS_KEY = 'betvora_users'
+const USERS_KEY = LOCAL.users
 const SESSION_KEY = 'betvora_session'
 const PENDING_KEY = 'betvora_pending'
 
-
-function delay(ms = 500) {
+function delay(ms = 450) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-const NEW_ADMINS = [
+function safe(promise) {
+  return Promise.resolve(promise).catch(() => undefined)
+}
+
+const STAFF_SEEDS = [
   {
     id: 'admin1',
     fullName: 'Betvora Admin One',
@@ -28,7 +46,7 @@ const NEW_ADMINS = [
     isSuspended: false,
     role: 'admin',
     referralCode: 'BV-ADMIN1',
-    createdAt: new Date().toISOString(),
+    createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
     id: 'admin2',
@@ -42,11 +60,8 @@ const NEW_ADMINS = [
     isSuspended: false,
     role: 'admin',
     referralCode: 'BV-ADMIN2',
-    createdAt: new Date().toISOString(),
+    createdAt: '2026-01-01T00:00:00.000Z',
   },
-]
-
-const NEW_AGENTS = [
   {
     id: 'agent1',
     fullName: 'Betvora Agent One',
@@ -59,35 +74,55 @@ const NEW_AGENTS = [
     isSuspended: false,
     role: 'agent',
     referralCode: 'BV-AGENT1',
-    createdAt: new Date().toISOString(),
+    createdAt: '2026-01-01T00:00:00.000Z',
   },
 ]
+
+export const STAFF_EMAILS = STAFF_SEEDS.map((seed) => seed.email)
+
+function staffSeedFor(email) {
+  const normalized = String(email || '').toLowerCase()
+  return STAFF_SEEDS.find((seed) => seed.email === normalized) || null
+}
+
+function seedProfiles() {
+  return STAFF_SEEDS.map((seed) => ({ ...seed }))
+}
 
 export function readUsers() {
   try {
     const raw = localStorage.getItem(USERS_KEY)
     const users = raw ? JSON.parse(raw) : []
-    if (!users.length) {
-      writeUsers([...NEW_ADMINS, ...NEW_AGENTS])
-      return [...NEW_ADMINS, ...NEW_AGENTS]
+    if (!Array.isArray(users) || users.length === 0) {
+      // Staff seeds only exist in local-only mode. With Firebase configured,
+      // the real profiles (keyed by Firebase uid) are the only user records.
+      if (isFirebaseConfigured) return []
+      writeUsers(seedProfiles())
+      return seedProfiles()
     }
 
-    // Migrate: drop the legacy admin account and ensure the two new admins exist.
+    // Drop legacy preview accounts. Staff seeds stay present only offline.
     let changed = false
-    let migrated = users.filter((u) => u.id !== 'u000' && u.email !== 'admin@betvora.app' && u.email !== 'demo@betvora.app')
+    let migrated = users.filter(
+      (u) => u.id !== 'u000' && u.email !== 'admin@betvora.app' && u.email !== 'demo@betvora.app',
+    )
     if (migrated.length !== users.length) changed = true
 
-    for (const admin of NEW_ADMINS) {
-      const exists = migrated.some((u) => u.id === admin.id || u.email === admin.email)
-      if (!exists) {
-        migrated = [...migrated, { ...admin, createdAt: admin.createdAt }]
-        changed = true
+    if (!isFirebaseConfigured) {
+      for (const seed of STAFF_SEEDS) {
+        const exists = migrated.some((u) => String(u.email || '').toLowerCase() === seed.email)
+        if (!exists) {
+          migrated = [...migrated, { ...seed }]
+          changed = true
+        }
       }
-    }
-    for (const agent of NEW_AGENTS) {
-      const exists = migrated.some((u) => u.id === agent.id || u.email === agent.email)
-      if (!exists) {
-        migrated = [...migrated, { ...agent, createdAt: agent.createdAt }]
+    } else {
+      // Clean out stale seed rows left by earlier builds.
+      const cleaned = migrated.filter(
+        (u) => !['admin1', 'admin2', 'agent1'].includes(String(u.id)),
+      )
+      if (cleaned.length !== migrated.length) {
+        migrated = cleaned
         changed = true
       }
     }
@@ -95,17 +130,35 @@ export function readUsers() {
     if (changed) writeUsers(migrated)
     return migrated
   } catch {
-    return [...NEW_ADMINS, ...NEW_AGENTS]
+    return isFirebaseConfigured ? [] : seedProfiles()
   }
 }
 
 export function writeUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-  // Mirror to Firestore without passwords (never persist plaintext creds).
-  mirrorPersist(
-    COLLECTIONS.users,
-    users.map((u) => ({ ...u, password: undefined })),
+  try {
+    localStorage.setItem(USERS_KEY, JSON.stringify(users))
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+function cacheProfile(profile) {
+  if (!profile) return
+  const users = readUsers()
+  const email = String(profile.email || '').toLowerCase()
+  const index = users.findIndex(
+    (u) => u.id === profile.id || (email && String(u.email || '').toLowerCase() === email),
   )
+  if (index >= 0) {
+    users[index] = {
+      ...users[index],
+      ...profile,
+      password: users[index].password ?? profile.password,
+    }
+  } else {
+    users.push(profile)
+  }
+  writeUsers(users)
 }
 
 function sanitize(user) {
@@ -115,19 +168,185 @@ function sanitize(user) {
   return copy
 }
 
+function stripPassword(user) {
+  return sanitize(user)
+}
+
 function findUser(users, identifier) {
-  const id = String(identifier || '').toLowerCase()
-  return users.find((u) => u.email.toLowerCase() === id || u.phone === identifier)
+  const value = String(identifier || '').trim()
+  const lower = value.toLowerCase()
+  return users.find(
+    (u) =>
+      String(u.email || '').toLowerCase() === lower ||
+      String(u.phone || '').replace(/\s/g, '') === value.replace(/\s/g, ''),
+  )
+}
+
+function isNetworkError(err) {
+  const code = err?.code || ''
+  const message = String(err?.message || '')
+  return (
+    code === 'auth/network-request-failed' ||
+    code === 'auth/timeout' ||
+    message.includes('firebase-auth-timeout') ||
+    message.includes('network')
+  )
+}
+
+function mapRegisterError(err) {
+  switch (err?.code) {
+    case 'auth/email-already-in-use':
+      return new Error('An account with this email already exists.')
+    case 'auth/invalid-email':
+      return new Error('Enter a valid email address.')
+    case 'auth/weak-password':
+      return new Error('Choose a stronger password (at least 8 characters).')
+    case 'auth/operation-not-allowed':
+      return new Error('Email sign-up is not enabled. Contact support.')
+    case 'auth/too-many-requests':
+      return new Error('Too many attempts. Please wait a moment and try again.')
+    case 'auth/network-request-failed':
+      return new Error('Cannot reach the server. Check your connection and try again.')
+    default:
+      return new Error(err?.message || 'Could not create your account.')
+  }
+}
+
+function setSession(user) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(sanitize(user)))
+  } catch {
+    /* ignore quota errors */
+  }
+}
+
+export function getSession() {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_KEY))
+  } catch {
+    return null
+  }
+}
+
+function buildBasicProfile(firebaseUser) {
+  const email = String(firebaseUser.email || '').toLowerCase()
+  const name = firebaseUser.displayName || email.split('@')[0] || 'BETVORA player'
+  return {
+    id: firebaseUser.uid,
+    firstName: name.split(' ')[0] || '',
+    lastName: name.split(' ').slice(1).join(' '),
+    fullName: name,
+    email,
+    phone: firebaseUser.phoneNumber || '',
+    country: 'GH',
+    currency: 'GHS',
+    isVerified: Boolean(firebaseUser.emailVerified),
+    isSuspended: false,
+    role: 'user',
+    referralCode: `BV-${name.replace(/[^a-z]/gi, '').slice(0, 4).toUpperCase()}${Math.floor(100 + Math.random() * 900)}`,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+/** Fetch the shared profile for a Firebase user, creating it if necessary. */
+async function resolveProfile(firebaseUser) {
+  const uid = firebaseUser.uid
+  const email = String(firebaseUser.email || '').toLowerCase()
+  let profile = await cloudGet(CLOUD.users, uid)
+
+  if (!profile) {
+    const local = readUsers().find(
+      (u) =>
+        String(u.email || '').toLowerCase() === email ||
+        u.id === uid,
+    )
+    const seed = staffSeedFor(email)
+    if (local) {
+      profile = { ...local, id: uid }
+    } else if (seed) {
+      profile = { ...seed, id: uid }
+    } else {
+      profile = buildBasicProfile(firebaseUser)
+    }
+    await safe(cloudSet(CLOUD.users, uid, stripPassword(profile)))
+  }
+
+  profile.id = uid
+  if (email) profile.email = email
+  if (!profile.fullName) {
+    profile.fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || email
+  }
+  // Keep the flags the security rules compare present on every profile.
+  if (typeof profile.isSuspended !== 'boolean') profile.isSuspended = false
+  if (typeof profile.isVerified !== 'boolean') profile.isVerified = true
+  // Staff identities are fixed: the role is never taken from a mutable cache.
+  const seed = staffSeedFor(email)
+  if (seed) profile.role = seed.role
+  if (!profile.role) profile.role = 'user'
+  cacheProfile(profile)
+  return profile
+}
+
+/** Move a pre-Firebase local account's money data onto its Firebase uid. */
+async function migrateLocalAccount(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) return
+  try {
+    const wallets = readLocal(LOCAL.wallets, {})
+    if (wallets[oldId]) {
+      wallets[newId] = { ...wallets[oldId], id: newId }
+      delete wallets[oldId]
+      writeLocal(LOCAL.wallets, wallets)
+      await safe(cloudSet(CLOUD.wallets, newId, wallets[newId]))
+    }
+    for (const [key, collection] of [
+      [LOCAL.bets, CLOUD.bets],
+      [LOCAL.depositRequests, CLOUD.depositRequests],
+      [LOCAL.withdrawalRequests, CLOUD.withdrawalRequests],
+      [LOCAL.notifications, CLOUD.notifications],
+    ]) {
+      const items = readLocal(key, [])
+      let changed = false
+      for (const item of items) {
+        if (item.userId === oldId) {
+          item.userId = newId
+          changed = true
+          await safe(cloudSet(collection, item.id, item))
+        }
+      }
+      if (changed) writeLocal(key, items)
+    }
+  } catch {
+    /* migration is best effort */
+  }
+}
+
+async function finishLogin(firebaseUser, localUser) {
+  const profile = await resolveProfile(firebaseUser)
+
+  if (profile.isSuspended) {
+    await safe(
+      import('firebase/auth').then(({ signOut }) =>
+        ensureFirebase().then(({ auth }) => signOut(auth)),
+      ),
+    )
+    throw new Error('This account has been suspended. Contact support.')
+  }
+
+  if (localUser && localUser.id !== firebaseUser.uid) {
+    await migrateLocalAccount(localUser.id, firebaseUser.uid)
+  }
+
+  setSession(profile)
+  // Pull the shared data in the background so signing in is instant; the
+  // wallet context hydrates its own balance in parallel.
+  void safe(hydrateUserData(firebaseUser.uid))
+  void safe(ensureWalletDoc(firebaseUser.uid))
+  return sanitize(profile)
 }
 
 export async function register(payload) {
   if (isFirebaseConfigured) {
-    try {
-      return await registerWithFirebase(payload)
-    } catch (err) {
-      // Firebase Auth may be unreachable/slow; keep the app usable offline.
-      return registerLocal(payload)
-    }
+    return registerWithFirebase(payload)
   }
   return registerLocal(payload)
 }
@@ -145,12 +364,19 @@ async function registerWithFirebase({
   currency = 'GHS',
   referredBy = '',
 }) {
-  await delay()
+  await delay(300)
   const { createUserWithEmailAndPassword } = await import('firebase/auth')
   const { auth } = await ensureFirebase()
-  const normalized = email.toLowerCase()
+  const normalized = String(email || '').trim().toLowerCase()
   const fullName = `${firstName || ''} ${lastName || ''}`.trim()
-  const credential = await createUserWithEmailAndPassword(auth, normalized, password)
+
+  let credential
+  try {
+    credential = await createUserWithEmailAndPassword(auth, normalized, password)
+  } catch (err) {
+    throw mapRegisterError(err)
+  }
+
   const user = {
     id: credential.user.uid,
     firstName,
@@ -158,7 +384,6 @@ async function registerWithFirebase({
     fullName,
     email: normalized,
     phone,
-    password,
     dob,
     idType,
     idNumber,
@@ -171,11 +396,11 @@ async function registerWithFirebase({
     referralCode: `BV-${fullName.replace(/[^a-z]/gi, '').slice(0, 4).toUpperCase()}${Math.floor(100 + Math.random() * 900)}`,
     createdAt: new Date().toISOString(),
   }
-  await writeDoc(COLLECTIONS.users, user.id, user)
-  const users = readUsers()
-  users.push(user)
-  writeUsers(users)
-  localStorage.setItem(SESSION_KEY, JSON.stringify(sanitize(user)))
+
+  cacheProfile(user)
+  setSession(user)
+  await safe(cloudSet(CLOUD.users, user.id, stripPassword(user)))
+  await safe(ensureWalletDoc(user.id))
   return sanitize(user)
 }
 
@@ -195,7 +420,7 @@ async function registerLocal({
   await delay()
   const users = readUsers()
   const normalized = email.toLowerCase()
-  if (users.some((u) => u.email.toLowerCase() === normalized)) {
+  if (users.some((u) => String(u.email || '').toLowerCase() === normalized)) {
     throw new Error('An account with this email already exists.')
   }
   if (users.some((u) => u.phone === phone)) {
@@ -224,10 +449,14 @@ async function registerLocal({
   }
   users.push(user)
   writeUsers(users)
-  localStorage.setItem(
-    PENDING_KEY,
-    JSON.stringify({ email: user.email, code: '123456', purpose: 'verify' }),
-  )
+  try {
+    localStorage.setItem(
+      PENDING_KEY,
+      JSON.stringify({ email: user.email, code: '123456', purpose: 'verify' }),
+    )
+  } catch {
+    /* ignore */
+  }
   return sanitize(user)
 }
 
@@ -236,39 +465,54 @@ export async function login(payload) {
     try {
       return await loginWithFirebase(payload)
     } catch (err) {
-      return loginLocal(payload)
+      // Only a connectivity failure falls back to the cached local account.
+      if (isNetworkError(err)) return loginLocal(payload)
+      throw err
     }
   }
   return loginLocal(payload)
 }
 
 async function loginWithFirebase({ identifier, password }) {
-  await delay()
+  await delay(250)
   const users = readUsers()
   const localUser = findUser(users, identifier)
-  const { signInWithEmailAndPassword } = await import('firebase/auth')
+  const typed = String(identifier || '').trim()
+  const email = localUser?.email || (/@/.test(typed) ? typed.toLowerCase() : '')
+
+  if (!email) {
+    throw new Error('Enter the email address linked to your account.')
+  }
+
+  const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth')
   const { auth } = await ensureFirebase()
-  const email = localUser?.email || (/@/.test(identifier) ? String(identifier).toLowerCase() : '')
 
-  let firebaseOk = false
+  let credential
   try {
-    await Promise.race([
-      signInWithEmailAndPassword(auth, email || identifier, password),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('firebase-auth-timeout')), 4000)),
-    ])
-    firebaseOk = true
+    credential = await signInWithEmailAndPassword(auth, email, password)
   } catch (err) {
-    // Demo convenience: local accounts may still sign in even when Firebase
-    // Auth is unreachable, restricted, or the account was never created there.
-    if (!localUser || localUser.password !== password) throw err
+    if (isNetworkError(err)) throw err
+
+    const canMigrate = localUser && localUser.password === password
+    if (!canMigrate) {
+      if (err?.code === 'auth/too-many-requests') {
+        throw new Error('Too many attempts. Please wait a moment and try again.')
+      }
+      throw new Error('Invalid email/phone or password.')
+    }
+
+    // First sign-in for an account created before Firebase Auth existed.
+    try {
+      credential = await createUserWithEmailAndPassword(auth, email, password)
+    } catch (createErr) {
+      if (createErr?.code === 'auth/email-already-in-use') {
+        throw new Error('Invalid email/phone or password.')
+      }
+      throw mapRegisterError(createErr)
+    }
   }
 
-  if (!localUser) throw new Error('Invalid email/phone or password.')
-  if (localUser.isSuspended) {
-    throw new Error('This account has been suspended. Contact support.')
-  }
-  localStorage.setItem(SESSION_KEY, JSON.stringify(sanitize(localUser)))
-  return sanitize(localUser)
+  return finishLogin(credential.user, localUser)
 }
 
 async function loginLocal({ identifier, password }) {
@@ -284,13 +528,87 @@ async function loginLocal({ identifier, password }) {
   if (user.isSuspended) {
     throw new Error('This account has been suspended. Contact support.')
   }
-  localStorage.setItem(SESSION_KEY, JSON.stringify(sanitize(user)))
+  setSession(user)
   return sanitize(user)
+}
+
+function waitForAuthUser(auth, preferUser) {
+  return new Promise((resolve) => {
+    let settled = false
+    let unsubscribe = () => {}
+    let grace = null
+
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (grace) clearTimeout(grace)
+      try {
+        unsubscribe()
+      } catch {
+        /* ignore */
+      }
+      resolve(value)
+    }
+
+    const timer = setTimeout(() => finish(null), 9000)
+
+    unsubscribe = auth.onAuthStateChanged(
+      (user) => {
+        if (user) return finish(user)
+        if (!preferUser) return finish(null)
+        // A cached session exists: give Firebase a moment to restore it.
+        if (!grace) grace = setTimeout(() => finish(null), 2000)
+      },
+      () => finish(null),
+    )
+  })
+}
+
+/**
+ * Restore the signed-in user on boot. Firebase Auth persists the session, so
+ * this also picks up a login made in another tab/device session.
+ */
+export async function restoreSession() {
+  const cached = getSession()
+  if (!isFirebaseConfigured) return cached
+
+  try {
+    const { auth } = await ensureFirebase()
+    const firebaseUser = await waitForAuthUser(auth, Boolean(cached))
+
+    if (!firebaseUser) {
+      localStorage.removeItem(SESSION_KEY)
+      return null
+    }
+
+    const profile = await resolveProfile(firebaseUser)
+    if (profile.isSuspended) {
+      await safe(
+        import('firebase/auth').then(({ signOut }) => signOut(auth)),
+      )
+      localStorage.removeItem(SESSION_KEY)
+      return null
+    }
+
+    setSession(profile)
+    void safe(hydrateUserData(firebaseUser.uid))
+    void safe(ensureWalletDoc(firebaseUser.uid))
+    return sanitize(profile)
+  } catch {
+    // Offline: trust the cached session rather than signing the user out.
+    return cached
+  }
 }
 
 export async function verifyOtp({ email, code }) {
   await delay()
-  const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}')
+  let pending = {}
+  try {
+    pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}')
+  } catch {
+    pending = {}
+  }
   if (pending.email !== email) {
     throw new Error('No verification is pending for this account.')
   }
@@ -298,17 +616,32 @@ export async function verifyOtp({ email, code }) {
     throw new Error('Invalid verification code. Please try again.')
   }
   const users = readUsers()
-  const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
+  const user = users.find((u) => String(u.email || '').toLowerCase() === email.toLowerCase())
   if (!user) throw new Error('Account not found.')
   user.isVerified = true
   writeUsers(users)
+  await safe(cloudSet(CLOUD.users, user.id, stripPassword(user)))
   localStorage.removeItem(PENDING_KEY)
-  localStorage.setItem(SESSION_KEY, JSON.stringify(sanitize(user)))
+  setSession(user)
   return sanitize(user)
 }
 
 export async function requestPasswordReset({ email }) {
-  await delay()
+  await delay(250)
+  if (isFirebaseConfigured) {
+    try {
+      const { sendPasswordResetEmail } = await import('firebase/auth')
+      const { auth } = await ensureFirebase()
+      await sendPasswordResetEmail(auth, String(email || '').trim().toLowerCase())
+    } catch (err) {
+      // Never reveal whether an account exists.
+      if (isNetworkError(err)) {
+        throw new Error('Cannot reach the server. Check your connection and try again.')
+      }
+    }
+    return { sent: true }
+  }
+
   const users = readUsers()
   const user = findUser(users, email)
   if (!user) {
@@ -318,17 +651,28 @@ export async function requestPasswordReset({ email }) {
     PENDING_KEY,
     JSON.stringify({ email: user.email, code: '654321', purpose: 'reset' }),
   )
-  return true
+  return { sent: false }
 }
 
 export async function resetPassword({ email, code, password }) {
+  if (isFirebaseConfigured && !localStorage.getItem(PENDING_KEY)) {
+    throw new Error('Open the reset link we emailed you to choose a new password.')
+  }
   await delay()
-  const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}')
+  let pending = {}
+  try {
+    pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '{}')
+  } catch {
+    pending = {}
+  }
   if (pending.email !== email || pending.purpose !== 'reset') {
     throw new Error('No password reset is pending for this account.')
   }
   if (pending.code !== code) {
     throw new Error('Invalid verification code. Please try again.')
+  }
+  if (String(password || '').length < 8) {
+    throw new Error('New password must be at least 8 characters.')
   }
   const users = readUsers()
   const user = findUser(users, email)
@@ -339,40 +683,78 @@ export async function resetPassword({ email, code, password }) {
   return sanitize(user)
 }
 
+const EDITABLE_PROFILE_FIELDS = [
+  'firstName',
+  'lastName',
+  'fullName',
+  'phone',
+  'dob',
+  'idType',
+  'idNumber',
+  'country',
+  'currency',
+  'referredBy',
+  'isVerified',
+  'avatar',
+  'bankAccounts',
+  'preferences',
+]
+
 export async function updateProfile(userId, updates) {
-  await delay(350)
+  await delay(250)
   const users = readUsers()
-  const user = users.find((u) => u.id === userId)
-  if (!user) throw new Error('Account not found.')
-  Object.assign(user, updates)
+  const index = users.findIndex((u) => u.id === userId)
+  if (index === -1) throw new Error('Account not found.')
+
+  const patch = {}
+  for (const field of EDITABLE_PROFILE_FIELDS) {
+    if (updates[field] !== undefined) patch[field] = updates[field]
+  }
+  users[index] = { ...users[index], ...patch }
   writeUsers(users)
-  const clean = sanitize(user)
-  localStorage.setItem(SESSION_KEY, JSON.stringify(clean))
+
+  const clean = sanitize(users[index])
+  setSession(clean)
+  await safe(cloudSet(CLOUD.users, userId, clean))
   return clean
 }
 
 export async function changePassword(userId, { currentPassword, newPassword }) {
-  await delay(350)
+  await delay(250)
   const users = readUsers()
   const user = users.find((u) => u.id === userId)
   if (!user) throw new Error('Account not found.')
-  if (user.password !== currentPassword) {
-    throw new Error('Current password is incorrect.')
-  }
-  if (newPassword.length < 8) {
+  if (String(newPassword || '').length < 8) {
     throw new Error('New password must be at least 8 characters.')
   }
+
+  if (isFirebaseConfigured) {
+    try {
+      const { signInWithEmailAndPassword, updatePassword } = await import('firebase/auth')
+      const { auth } = await ensureFirebase()
+      const email = auth.currentUser?.email || user.email
+      await signInWithEmailAndPassword(auth, email, currentPassword)
+      await updatePassword(auth.currentUser, newPassword)
+    } catch (err) {
+      if (isNetworkError(err)) {
+        throw new Error('Cannot reach the server. Check your connection and try again.')
+      }
+      if (
+        err?.code === 'auth/wrong-password' ||
+        err?.code === 'auth/invalid-credential' ||
+        err?.code === 'auth/invalid-login-credentials'
+      ) {
+        throw new Error('Current password is incorrect.')
+      }
+      throw new Error(err?.message || 'Could not update your password.')
+    }
+  } else if (user.password !== currentPassword) {
+    throw new Error('Current password is incorrect.')
+  }
+
   user.password = newPassword
   writeUsers(users)
   return true
-}
-
-export function getSession() {
-  try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY))
-  } catch {
-    return null
-  }
 }
 
 export function logout() {
@@ -384,4 +766,24 @@ export function logout() {
   localStorage.removeItem(SESSION_KEY)
 }
 
+/**
+ * Create a Firebase Auth account without disturbing the signed-in admin
+ * session. Used by the admin "Create Agent" flow.
+ */
+export async function createAuthAccount(email, password) {
+  if (!isFirebaseConfigured) return null
+  const [{ initializeApp, deleteApp }, { getAuth, createUserWithEmailAndPassword, signOut }] =
+    await Promise.all([import('firebase/app'), import('firebase/auth')])
 
+  const appName = `betvora-admin-${Date.now()}`
+  const secondary = initializeApp(firebaseConfig, appName)
+  try {
+    const secondaryAuth = getAuth(secondary)
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password)
+    const uid = credential.user.uid
+    await safe(signOut(secondaryAuth))
+    return uid
+  } finally {
+    await safe(deleteApp(secondary))
+  }
+}

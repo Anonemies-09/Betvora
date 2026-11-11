@@ -1,36 +1,49 @@
-// Notification centre, backed by localStorage.
-// Phase 16 UI + engine events push through here.
+// Notification centre.
+//
+// Notifications are per-user: each document carries a `userId` so the same
+// message appears on every device the user signs in on. localStorage remains
+// the synchronous cache and the cloud copy is written in the background.
 
-import { COLLECTIONS, mirrorPersist } from './firestoreService'
+import { CLOUD, cloudEnabled, cloudSet, readLocal, writeLocal, sortNewest } from './cloudSync'
 
 const NOTIFICATIONS_KEY = 'betvora_notifications'
 
-const SEED = []
-
-function delay(ms = 250) {
+function delay(ms = 180) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function readNotifications() {
+function currentUserId() {
   try {
-    const raw = localStorage.getItem(NOTIFICATIONS_KEY)
-    if (raw) return JSON.parse(raw)
+    const raw = localStorage.getItem('betvora_session')
+    const session = raw ? JSON.parse(raw) : null
+    return session?.id || ''
   } catch {
-    /* fall through to seed */
+    return ''
   }
-  const seed = SEED.map((n) => ({ ...n }))
-  localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(seed))
-  return seed
+}
+
+function readNotifications() {
+  return readLocal(NOTIFICATIONS_KEY, [])
 }
 
 function persist(notifications) {
-  localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications))
-  mirrorPersist(COLLECTIONS.notifications, notifications)
+  writeLocal(NOTIFICATIONS_KEY, notifications)
+}
+
+function mine() {
+  const uid = currentUserId()
+  const all = readNotifications()
+  if (!uid) return []
+  return all.filter((n) => n.userId === uid)
 }
 
 export async function getNotifications() {
   await delay()
-  return readNotifications().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  return sortNewest(mine())
+}
+
+export function getUnreadCount() {
+  return mine().filter((n) => !n.read).length
 }
 
 function browserNotificationsEnabled() {
@@ -71,39 +84,57 @@ export function showBrowserNotification(title, body) {
   }
 }
 
-export async function createNotification({ type = 'system', title, text }) {
-  const notifications = readNotifications()
-  notifications.unshift({
-    id: `n${Date.now()}`,
+export async function createNotification({ type = 'system', title, text, userId }) {
+  const uid = userId || currentUserId()
+  if (!uid) return []
+
+  const notification = {
+    id: `n${Date.now()}${Math.floor(Math.random() * 1000)}`,
+    userId: uid,
     type,
     title,
     text,
     read: false,
     createdAt: new Date().toISOString(),
-  })
-  persist(notifications)
-  if (typeof window !== 'undefined') {
+  }
+
+  const all = readNotifications()
+  all.unshift(notification)
+  persist(all)
+
+  // Background cloud write keeps the UI instant.
+  if (cloudEnabled()) {
+    void cloudSet(CLOUD.notifications, notification.id, notification)
+  }
+
+  // Only pop the device notification for the user who is actually signed in.
+  if (typeof window !== 'undefined' && uid === currentUserId()) {
     window.dispatchEvent(new CustomEvent('betvora:notify'))
     showBrowserNotification(title, text)
   }
-  return notifications
+  return all
 }
 
 export async function markRead(id) {
-  const notifications = readNotifications()
-  const target = notifications.find((n) => n.id === id)
+  const all = readNotifications()
+  const target = all.find((n) => n.id === id)
   if (target) target.read = true
-  persist(notifications)
+  persist(all)
+  if (target && cloudEnabled()) {
+    void cloudSet(CLOUD.notifications, id, { ...target, read: true })
+  }
 }
 
 export async function markAllRead() {
-  const notifications = readNotifications()
-  notifications.forEach((n) => {
-    n.read = true
-  })
-  persist(notifications)
-}
-
-export function getUnreadCount() {
-  return readNotifications().filter((n) => !n.read).length
+  const uid = currentUserId()
+  const all = readNotifications()
+  for (const notification of all) {
+    if (notification.userId === uid) {
+      notification.read = true
+      if (cloudEnabled()) {
+        void cloudSet(CLOUD.notifications, notification.id, { read: true })
+      }
+    }
+  }
+  persist(all)
 }

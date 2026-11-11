@@ -48,7 +48,7 @@ export default function Login() {
           name="identifier"
           type="text"
           icon={Mail}
-          placeholder="demo@betvora.app"
+          placeholder="you@example.com"
           value={form.identifier}
           onChange={update('identifier')}
           autoComplete="username"

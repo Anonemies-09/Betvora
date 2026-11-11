@@ -6,11 +6,11 @@ const SECTIONS = {
   casino: {
     title: 'Casino',
     heading: 'The casino floor is being set up',
-    text: 'Slot machines, table games and live dealer rooms are next on the BETVORA roadmap. When they open, they run on the same demo wallet — no extra sign-up, no real money.',
+    text: 'Slot machines, table games and live dealer rooms are next on the BETVORA roadmap. When they open, they will run on the same wallet — no extra sign-up.',
     features: [
       {
         name: 'Slots',
-        note: 'Classic fruit machines and progressive jackpots with instant demo spins.',
+        note: 'Classic fruit machines and progressive jackpots with instant spins.',
       },
       {
         name: 'Blackjack',
@@ -58,7 +58,7 @@ export default function ComingSoonPage() {
   const section = SECTIONS[key] || {
     title: key.charAt(0).toUpperCase() + (key || '').slice(1),
     heading: 'This section is being built',
-    text: 'It is on the BETVORA roadmap and will open in a future release of the demo.',
+    text: 'It is on the BETVORA roadmap and will open in a future release.',
     features: [],
   }
 
@@ -96,7 +96,7 @@ export default function ComingSoonPage() {
         <p className="text-sm font-black uppercase tracking-widest text-gold">While you wait</p>
         <p className="mt-2 max-w-lg text-sm leading-relaxed text-white/55">
           Sports markets are live right now. There is a full card of football across Africa and
-          Europe today, plus in-play action with cash-out — all on the demo wallet.
+          Europe today, plus in-play action with cash-out — all on your BETVORA wallet.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <Button onClick={() => navigate('/sports')}>Browse today&apos;s odds</Button>

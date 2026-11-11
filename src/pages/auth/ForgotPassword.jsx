@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, KeyRound, Lock, Eye, EyeOff, ArrowLeft, Info } from 'lucide-react'
+import { Mail, KeyRound, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import Input from '../../components/common/Input'
 import Button from '../../components/common/Button'
 import { useAuth } from '../../context/AuthContext'
@@ -22,8 +22,8 @@ export default function ForgotPassword() {
     setError('')
     setLoading(true)
     try {
-      await requestPasswordReset({ email })
-      setStep('reset')
+      const result = await requestPasswordReset({ email })
+      setStep(result?.sent ? 'sent' : 'reset')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -47,6 +47,24 @@ export default function ForgotPassword() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (step === 'sent') {
+    return (
+      <div>
+        <div className="rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+          Reset link sent
+        </div>
+        <h1 className="mt-5 text-2xl font-black text-white">Check your email</h1>
+        <p className="mt-2 text-sm text-white/50">
+          If an account exists for <b className="text-white">{email}</b>, a password reset link is on
+          its way. Open it to choose a new password.
+        </p>
+        <Button size="lg" fullWidth className="mt-7" onClick={() => navigate('/login')}>
+          Back to Login
+        </Button>
+      </div>
+    )
   }
 
   if (step === 'done') {
@@ -78,12 +96,12 @@ export default function ForgotPassword() {
       <h1 className="mt-5 text-2xl font-black text-white">Reset password</h1>
       <p className="mt-1 text-sm text-white/50">
         {step === 'email'
-          ? 'Enter your account email and we will send you a reset code.'
+          ? 'Enter your account email and we will send you a password reset link.'
           : `Enter the code sent to ${email} and choose a new password.`}
       </p>
 
       <form onSubmit={step === 'email' ? sendCode : doReset} className="mt-6 space-y-4">
-        {step === 'email' ? (
+        {step === 'email' && (
           <Input
             label="Email"
             name="email"
@@ -94,14 +112,15 @@ export default function ForgotPassword() {
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
           />
-        ) : (
+        )}
+        {step === 'reset' && (
           <>
             <Input
               label="Reset Code"
               name="code"
               type="text"
               icon={KeyRound}
-              placeholder="6-digit code"
+              placeholder="Reset code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
@@ -125,12 +144,6 @@ export default function ForgotPassword() {
                 </button>
               }
             />
-            <div className="flex items-start gap-2.5 rounded-xl border border-gold/20 bg-gold/5 p-3 text-xs text-white/60">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-              <span>
-                Demo mode: reset code is <b className="text-white">654321</b>
-              </span>
-            </div>
           </>
         )}
 
@@ -141,7 +154,7 @@ export default function ForgotPassword() {
         )}
 
         <Button type="submit" size="lg" fullWidth loading={loading}>
-          {step === 'email' ? 'Send Reset Code' : 'Reset Password'}
+          {step === 'email' ? 'Send Reset Link' : 'Reset Password'}
         </Button>
       </form>
     </div>

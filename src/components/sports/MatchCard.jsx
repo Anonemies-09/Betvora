@@ -83,7 +83,7 @@ export default function MatchCard({ match, onClick, showLeague = true }) {
         ))}
       </div>
       <div className="flex items-center justify-between border-t border-white/5 px-4 py-1.5 text-[11px] font-semibold text-white/35">
-        <span className="uppercase tracking-wide">Odds are for demonstration</span>
+        <span className="uppercase tracking-wide">Odds subject to change</span>
         <span className="text-gold">+{marketCount} markets</span>
       </div>
     </Card>

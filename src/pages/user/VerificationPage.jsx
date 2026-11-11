@@ -16,7 +16,7 @@ export default function VerificationPage() {
     e.preventDefault()
     setLoading(true)
     await updateProfile({ isVerified: true })
-    setMessage('Verification submitted — your account is now verified in demo mode.')
+    setMessage('Verification submitted — your account is now verified.')
     setLoading(false)
   }
 
@@ -31,7 +31,7 @@ export default function VerificationPage() {
           <div>
             <p className="font-black text-white">Account verified</p>
             <p className="mt-1 text-sm text-white/50">
-              Your identity has been confirmed for the demo. Full KYC flows arrive with Firebase.
+              Your identity has been confirmed. You can now deposit, bet and withdraw.
             </p>
           </div>
         </Card>

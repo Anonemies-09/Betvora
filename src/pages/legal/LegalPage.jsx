@@ -7,7 +7,7 @@ const DOCS = {
     title: 'Terms & Conditions',
     updated: 'Last updated: 12 August 2026',
     intro:
-      'These Terms & Conditions govern your use of BETVORA and form a binding agreement between you and BETVORA when you access the platform, create an account, or place a bet. BETVORA is a demonstration product operated for preview purposes only — every balance, bet and payout is simulated.',
+      'These Terms & Conditions govern your use of BETVORA and form a binding agreement between you and BETVORA when you access the platform, create an account, or place a bet. BETVORA is a real-money sports betting service for players aged 18 and over — your balance, bets and payouts carry real value.',
     sections: [
       {
         h: '1. Eligibility and account creation',
@@ -32,7 +32,7 @@ const DOCS = {
       {
         h: '4. Deposits and withdrawals',
         body: [
-          'This is a demo: deposits, withdrawals and balances are simulated and hold no real-world value. Available methods in the full product would include mobile money (MTN Mobile Money, Telecel Cash, AirtelTigo Money), bank transfer and cards, subject to verification and security checks.',
+          'Deposits are made by sending funds to the BETVORA Telecel Cash merchant number shown on the deposit screen and submitting the transaction reference for verification. Every deposit is checked manually before it is credited, so please keep your confirmation message. Withdrawals are requested in the app and paid to the mobile money or bank account registered in your name, subject to verification and security checks.',
           'The name on your account must match the name registered to any mobile money wallet or payment method used. Withdrawals may be delayed for review in cases of suspected fraud, account misuse, or regulatory compliance checks.',
         ],
       },
@@ -106,24 +106,24 @@ const DOCS = {
     title: 'Privacy Policy',
     updated: 'Last updated: 12 August 2026',
     intro:
-      'BETVORA is committed to protecting and respecting your privacy and complies with applicable data protection law, including Ghana\u2019s Data Protection Act, 2012 (Act 843). This policy explains what information we handle, why, and the choices you have. This is a demo, so almost everything stays on your own device.',
+      'BETVORA is committed to protecting and respecting your privacy and complies with applicable data protection law, including Ghana\u2019s Data Protection Act, 2012 (Act 843). This policy explains what information we handle, why, and the choices you have. Account and wallet data is stored securely in the cloud so you can access your balance on any device.',
     sections: [
       {
         h: '1. Data we collect',
         body: [
-          'During registration and when you use your account, we collect personal data including: first and last name, date of birth, mobile phone number, email address, country, national identification type and number, referral code, and details of your transactions, bets and visits to the site. In the full product we would also collect proof of identity and address documents for KYC.',
+          'During registration and when you use your account, we collect personal data including: first and last name, date of birth, mobile phone number, email address, country, national identification type and number, referral code, and details of your transactions, bets and visits to the site. We may also request proof of identity and address documents for KYC before releasing withdrawals.',
         ],
       },
       {
         h: '2. Where your data lives',
         body: [
-          'All account data for this demo is stored in your browser using localStorage. There is no BETVORA server in this version, so nothing is transmitted or stored externally. Clearing your browser data removes your demo account, session, wallet and preferences.',
+          'Your account profile, wallet balance, bets and payment requests are stored in Google Firebase (Cloud Firestore) so they stay in sync across the devices you sign in on. Your browser keeps a local cache for fast loading and offline continuity. Clearing your browser data removes that cache but not your account — sign in again to restore it.',
         ],
       },
       {
         h: '3. Why we process it',
         body: [
-          'Your details are used to run your account, keep you signed in, verify logins, confirm your age and identity, personalise the demo, display your wallet in the correct currency, and prevent fraud. We obtain this data for specific and lawful purposes only and do not sell your personal information.',
+          'Your details are used to run your account, keep you signed in, verify logins, confirm your age and identity, operate your wallet in the correct currency, process deposits and withdrawals, settle bets, and prevent fraud. We obtain this data for specific and lawful purposes only and do not sell your personal information.',
         ],
       },
       {
@@ -164,18 +164,19 @@ const DOCS = {
     title: 'Cookie Policy',
     updated: 'Last updated: 12 August 2026',
     intro:
-      'Cookies are small text files stored on your device when you visit a website. BETVORA uses browser storage (localStorage) to make the demo work, and cookies may be used for advertising where you have consented. Some of this is essential; some is only used with your permission.',
+      'Cookies are small text files stored on your device when you visit a website. BETVORA uses browser storage (localStorage) to keep you signed in, cache your account data and remember your preferences, and cookies may be used for advertising where you have consented. Some of this is essential; some is only used with your permission.',
     sections: [
       {
         h: '1. What cookies we use',
         body: [
-          'Session cookies are stored temporarily while you browse and let you move between pages without re-entering details. Persistent cookies remember you as a returning visitor. For this demo, the following items are stored in your browser:',
+          'Session cookies are stored temporarily while you browse and let you move between pages without re-entering details. Persistent cookies remember you as a returning visitor. The following items are stored in your browser:',
         ],
         list: [
           'betvora_session — keeps you signed in',
-          'betvora_wallet — your demo balance and transaction history',
-          'betvora_users — the demo account directory on this device',
-          'betvora_pending — verification and password-reset codes',
+          'betvora_wallets — a cache of your balance and transaction history',
+          'betvora_bets — a cache of your bet history',
+          'betvora_deposit_requests / betvora_withdrawal_requests — your payment requests',
+          'betvora_notifications — your notification history',
           'betvora_settings — your in-app preferences',
         ],
       },
@@ -202,7 +203,7 @@ const DOCS = {
       {
         h: '5. Managing cookies',
         body: [
-          'You can amend your browser settings to block or delete some or all cookies and storage at any time — further guidance is available at allaboutcookies.org. Blocking essential storage may prevent parts of the demo from working as intended, and clearing browser data will reset your demo account.',
+          'You can amend your browser settings to block or delete some or all cookies and storage at any time — further guidance is available at allaboutcookies.org. Blocking essential storage may prevent you from staying signed in or seeing your cached data, but your account itself is held securely in the cloud.',
         ],
       },
       {
@@ -268,7 +269,7 @@ export default function LegalPage({ doc }) {
         </div>
 
         <footer className="mt-14 border-t border-white/5 pt-6 text-center text-xs text-white/30">
-          BETVORA is a demo — 18+. Play responsibly. © {new Date().getFullYear()} BETVORA.
+          BETVORA — 18+. Play responsibly. © {new Date().getFullYear()} BETVORA.
         </footer>
       </main>
     </div>

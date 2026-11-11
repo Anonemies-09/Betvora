@@ -1,19 +1,15 @@
 // Firestore gateway.
 //
 // When Firebase is configured this module provides:
-//   • seedFirestoreData()   — idempotently seeds the demo collections
-//   • hydrateFromFirestore()— pulls seeded collections into localStorage
+//   • listCollection / getDocById / writeDoc — direct document access
 //   • mirrorPersist / mirrorDelete — every local write also lands in Firestore
+//   • bootstrapFirestore() — hydrates the public catalogue on first paint
 //
 // When Firebase is NOT configured every function is a safe no-op, so the
-// whole app keeps running on localStorage (offline demo mode).
+// whole app keeps running on localStorage.
 
 import { isFirebaseConfigured, ensureFirebase } from './firebase'
-// no demo data in live mode
-import { currencySymbol } from '../utils/format'
-
-
-const ADMIN_PASSWORD = 'Admin@123'
+import { hydratePublicData } from './cloudSync'
 
 export const COLLECTIONS = {
   users: 'users',
@@ -23,15 +19,6 @@ export const COLLECTIONS = {
   promotions: 'promotions',
   notifications: 'notifications',
   banners: 'banners',
-}
-
-export const LOCAL_KEYS = {
-  users: 'betvora_users',
-  bets: 'betvora_bets',
-  matches: 'betvora_matches',
-  promotions: 'betvora_promotions',
-  notifications: 'betvora_notifications',
-  banners: 'betvora_banners',
 }
 
 export function isAvailable() {
@@ -133,110 +120,13 @@ export async function mirrorDelete(kind, id) {
 
 
 
-function seedUsers() {
-  return [
-    {
-      id: 'admin1',
-      fullName: 'Betvora Admin One',
-      email: 'admin1@betvora.app',
-      phone: '+233 20 000 0001',
-      password: 'Admin1@2026',
-      country: 'GH',
-      currency: 'GHS',
-      isVerified: true,
-      isSuspended: false,
-      role: 'admin',
-      referralCode: 'BV-ADMIN1',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'admin2',
-      fullName: 'Betvora Admin Two',
-      email: 'admin2@betvora.app',
-      phone: '+233 20 000 0002',
-      password: 'Admin2@2026',
-      country: 'GH',
-      currency: 'GHS',
-      isVerified: true,
-      isSuspended: false,
-      role: 'admin',
-      referralCode: 'BV-ADMIN2',
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'agent1',
-      fullName: 'Betvora Agent One',
-      email: 'agent@betvora.app',
-      phone: '+233 20 000 0003',
-      password: 'Agent@2026',
-      country: 'GH',
-      currency: 'GHS',
-      isVerified: true,
-      isSuspended: false,
-      role: 'agent',
-      referralCode: 'BV-AGENT1',
-      createdAt: new Date().toISOString(),
-    },
-  ]
-}
-
-export async function seedFirestoreData() {
-  if (!isAvailable()) return
-  // Remove the legacy admin document, if present.
-  for (const legacyId of ['u000', 'u001']) {
-    try {
-      await deleteDocById(COLLECTIONS.users, legacyId)
-    } catch {
-      /* ignore - may not exist or be denied */
-    }
-  }
-  const users = seedUsers()
-  const wallets = users.map((u) => ({
-    id: u.id,
-    balance: 0,
-    bonus: 0,
-    currency: u.currency || 'GHS',
-    transactions: [],
-  }))
-
-  for (const [kind, items] of [
-    ['users', users],
-    ['wallets', wallets],
-  ]) {
-    for (const item of items) {
-      await writeDoc(kind, item.id, item)
-    }
-  }
-
-  // Live mode: no demo accounts are seeded.
-}
-
-export async function hydrateFromFirestore() {
-  if (!isAvailable()) return
-  for (const kind of Object.keys(COLLECTIONS)) {
-    const key = LOCAL_KEYS[kind]
-    if (!key) continue
-    try {
-      if (localStorage.getItem(key) !== null) continue
-      const docs = await listCollection(kind)
-      if (docs.length === 0) continue
-      if (kind === 'wallets') {
-        localStorage.setItem('betvora_wallet', JSON.stringify(docs[0]))
-      } else {
-        localStorage.setItem(key, JSON.stringify(docs))
-      }
-    } catch {
-      /* leave localStorage untouched */
-    }
-  }
-}
-
 export async function bootstrapFirestore() {
   if (!isAvailable()) return
   try {
-    await seedFirestoreData()
-    await hydrateFromFirestore()
+    // Public content: match catalogue, promotions and banners. Pulling it on
+    // every load keeps every device on the same fixtures and offers.
+    await hydratePublicData()
   } catch (err) {
-    console.warn('[firestore] bootstrap skipped — check .env config', err)
+    console.warn('[firestore] public hydration skipped — check .env config', err)
   }
 }
