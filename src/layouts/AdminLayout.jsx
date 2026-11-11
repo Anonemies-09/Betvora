@@ -22,6 +22,7 @@ const ADMIN_LINKS = [
   { to: '/admin/wallet', label: 'Wallet & Transactions', icon: Wallet, staff: true },
   { to: '/admin/promotions', label: 'Promotions', icon: Megaphone, adminOnly: true },
   { to: '/admin/banners', label: 'Banners', icon: Sparkles, adminOnly: true },
+{ to: '/admin/reports', label: 'Reports', icon: Sparkles, adminOnly: true },
 ]
 
 export default function AdminLayout() {
