@@ -1,26 +1,56 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Trash2, ReceiptText, Info } from 'lucide-react'
 import Card from '../../components/common/Card'
 import Button from '../../components/common/Button'
 import BetSlipItem from '../../components/betting/BetSlipItem'
+import BookingCodePanel from '../../components/betting/BookingCodePanel'
 import EmptyState from '../../components/common/EmptyState'
 import Tabs from '../../components/common/Tabs'
 import { useBetSlip } from '../../context/BetSlipContext'
 import { useWallet } from '../../context/WalletContext'
 import { placeBet } from '../../services/betService'
+import { loadBookingCode } from '../../services/bookingCodeService'
 import { formatCurrency, formatOdds, currencySymbol } from '../../utils/format'
 
 const BET_MODES = ['Singles', 'Multiple', 'System']
 
 export default function BetSlipPage() {
   const navigate = useNavigate()
-  const { selections, stake, setStake, totalOdds, potentialWin, removeSelection, clearSlip } =
+  const [searchParams] = useSearchParams()
+  const { selections, stake, setStake, totalOdds, potentialWin, removeSelection, clearSlip, loadSelections } =
     useBetSlip()
   const { balance, currency, refresh } = useWallet()
   const [mode, setMode] = useState('Multiple')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // A shared link (/bet-slip?code=XXXX) loads the slip automatically.
+  useEffect(() => {
+    const code = searchParams.get('code')
+    if (!code) return undefined
+    let active = true
+    ;(async () => {
+      try {
+        const result = await loadBookingCode(code)
+        if (!active) return
+        loadSelections(result.selections)
+        setNotice(
+          `Booking code ${result.code} loaded — set your own stake.`,
+        )
+      } catch (err) {
+        if (active) setError(err.message)
+      } finally {
+        if (active) navigate('/bet-slip', { replace: true })
+      }
+    })()
+    return () => {
+      active = false
+    }
+    // Only run for the code present when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const isMultiple = mode === 'Multiple' || selections.length === 1
   const multipleTotalOdds = totalOdds
@@ -52,11 +82,26 @@ export default function BetSlipPage() {
     return (
       <div className="mx-auto max-w-3xl space-y-6 lg:max-w-4xl">
         <h1 className="text-2xl font-black uppercase tracking-tight text-white">Bet Slip</h1>
+
+        {notice && (
+          <p className="rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+            {notice}
+          </p>
+        )}
+        {error && (
+          <p className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+            {error}
+          </p>
+        )}
+
         <EmptyState
           icon={ReceiptText}
           title="Your bet slip is empty"
-          text="Tap any odds on a match to build a single or multiple."
+          text="Tap any odds on a match to build a single or multiple — or load a shared booking code."
         />
+
+        <BookingCodePanel onLoad={loadSelections} />
+
         <Button size="lg" fullWidth onClick={() => navigate('/sports')}>
           Browse Matches
         </Button>
@@ -76,6 +121,12 @@ export default function BetSlipPage() {
           Clear
         </button>
       </div>
+
+      {notice && (
+        <p className="rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          {notice}
+        </p>
+      )}
 
       {selections.length > 1 && <Tabs tabs={BET_MODES} active={mode} onChange={setMode} />}
 
@@ -183,6 +234,8 @@ export default function BetSlipPage() {
           {system ? 'System bets — coming soon' : isMultiple ? 'Place Bet' : `Place ${selections.length} Singles`}
         </Button>
       </Card>
+
+      <BookingCodePanel selections={selections} onLoad={loadSelections} />
     </div>
   )
 }

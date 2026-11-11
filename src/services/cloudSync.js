@@ -21,6 +21,7 @@ export const CLOUD = {
   matches: 'matches',
   promotions: 'promotions',
   banners: 'banners',
+  bookingCodes: 'bookingCodes',
 }
 
 export const LOCAL = {
@@ -33,6 +34,7 @@ export const LOCAL = {
   matches: 'betvora_matches',
   promotions: 'betvora_promotions',
   banners: 'betvora_banners',
+  bookingCodes: 'betvora_booking_codes',
 }
 
 const WRITE_TIMEOUT = 20000
@@ -306,6 +308,33 @@ export async function pullStaffData() {
     for (const wallet of wallets) local[wallet.id] = { ...local[wallet.id], ...wallet }
     writeLocal(LOCAL.wallets, local)
   }
+  // Attach each player's identity to their wallet so agents, who cannot list
+  // the user directory, can still pick the right player when booking a bet.
+  if (users) {
+    const local = readLocal(LOCAL.wallets, {})
+    const patches = []
+    for (const user of users) {
+      if (!user?.id || !user.email) continue
+      const identity = {
+        email: user.email,
+        fullName: user.fullName || '',
+        phone: user.phone || '',
+        role: user.role || 'user',
+      }
+      const existing = local[user.id]
+      if (!existing) continue
+      local[user.id] = { ...existing, ...identity, id: user.id }
+      if (
+        existing.email !== identity.email ||
+        existing.fullName !== identity.fullName ||
+        existing.role !== identity.role
+      ) {
+        patches.push(cloudSet(CLOUD.wallets, user.id, identity))
+      }
+    }
+    writeLocal(LOCAL.wallets, local)
+    if (patches.length) void Promise.allSettled(patches)
+  }
   // Bets and payment requests are always written to the cloud before they are
   // cached locally, so the remote set is authoritative for staff views. Replace
   // (rather than merge) so staff devices drop bets or requests that no longer
@@ -324,14 +353,28 @@ export async function hydrateWallet(uid) {
   return wallet
 }
 
-export async function ensureWalletDoc(uid) {
+function walletIdentity(profile) {
+  if (!profile) return null
+  const identity = {
+    email: profile.email || '',
+    fullName: profile.fullName || '',
+    phone: profile.phone || '',
+    role: profile.role || 'user',
+  }
+  return identity.email ? identity : null
+}
+
+export async function ensureWalletDoc(uid, profile) {
   if (!cloudEnabled() || !uid) return null
   const existing = await cloudGet(CLOUD.wallets, uid)
   // Unknown (offline / timeout): keep the cached wallet and never write a
   // default balance, or a dropped connection could wipe real money.
   if (existing === undefined) return null
+  const identity = walletIdentity(profile)
   if (existing) {
-    mergeWallet(uid, existing)
+    mergeWallet(uid, identity ? { ...existing, ...identity } : existing)
+    // Identity-only merge: never touch balance or transactions here.
+    if (identity) void cloudSet(CLOUD.wallets, uid, identity)
     return existing
   }
   const wallet = {
@@ -340,10 +383,27 @@ export async function ensureWalletDoc(uid) {
     bonus: 0,
     currency: 'GHS',
     transactions: [],
+    ...(identity || {}),
   }
   await cloudSet(CLOUD.wallets, uid, wallet)
   mergeWallet(uid, wallet)
   return wallet
+}
+
+/**
+ * Merge a player's display identity onto their wallet document so staff can
+ * tell players apart when creating bookings. Never writes money fields.
+ */
+export async function writeWalletIdentity(uid, profile) {
+  if (!uid) return false
+  const identity = walletIdentity(profile)
+  if (!identity) return false
+  const wallets = readLocal(LOCAL.wallets, {})
+  if (!wallets[uid]) return false
+  wallets[uid] = { ...wallets[uid], ...identity, id: uid }
+  writeLocal(LOCAL.wallets, wallets)
+  if (!cloudEnabled()) return false
+  return cloudSet(CLOUD.wallets, uid, identity)
 }
 
 /** Public content: match catalogue, promotions and banners. */

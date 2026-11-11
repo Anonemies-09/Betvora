@@ -14,6 +14,7 @@ import {
   cloudEnabled,
   cloudListByUser,
   cloudSet,
+  hydrateWallet,
   readLocal,
   replaceUserSlice,
   sortNewest,
@@ -89,6 +90,18 @@ export async function placeBet({ selections, stake, userId }) {
       outcomeKey: s.outcomeKey,
       odds: Number(s.odds),
     })),
+  }
+
+  // Staff can book a bet for someone else. Use that player's live balance
+  // rather than whatever this device happened to cache earlier.
+  if (uid !== currentUserId() && cloudEnabled()) {
+    const fresh = await hydrateWallet(uid)
+    if (fresh === undefined) {
+      throw new Error("Could not load that player's wallet. Check your connection and try again.")
+    }
+    if (fresh === null) {
+      throw new Error('That player does not have a wallet yet.')
+    }
   }
 
   // Take the stake first: a short balance must never leave a phantom bet.

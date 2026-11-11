@@ -132,6 +132,20 @@ service cloud.firestore {
         && (isOwner(resource.data.userId) || isStaff());
     }
 
+    // ------------------------------------------------------- booking codes
+    // A code stores selections only (no stake, no locked odds). Any signed-in
+    // player can load a shared code, but only its creator or staff can change
+    // or delete it.
+    match /bookingCodes/{codeId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.selections.size() > 0
+        && request.resource.data.selections.size() <= 20;
+      allow update, delete: if signedIn()
+        && (resource.data.createdBy == uid() || isStaff());
+    }
+
     // -------------------------------------------------------- public content
     match /matches/{matchId} {
       allow read: if true;

@@ -19,6 +19,7 @@ import {
   hydrateUserData,
   readLocal,
   writeLocal,
+  writeWalletIdentity,
 } from './cloudSync'
 
 const USERS_KEY = LOCAL.users
@@ -352,7 +353,7 @@ async function finishLogin(firebaseUser, localUser) {
   // Pull the shared data in the background so signing in is instant; the
   // wallet context hydrates its own balance in parallel.
   void safe(hydrateUserData(firebaseUser.uid))
-  void safe(ensureWalletDoc(firebaseUser.uid))
+  void safe(ensureWalletDoc(firebaseUser.uid, profile))
   return sanitize(profile)
 }
 
@@ -412,7 +413,7 @@ async function registerWithFirebase({
   cacheProfile(user)
   setSession(user)
   await safe(cloudSet(CLOUD.users, user.id, stripPassword(user)))
-  await safe(ensureWalletDoc(user.id))
+  await safe(ensureWalletDoc(user.id, user))
   return sanitize(user)
 }
 
@@ -608,7 +609,7 @@ export async function restoreSession() {
 
     setSession(profile)
     void safe(hydrateUserData(firebaseUser.uid))
-    void safe(ensureWalletDoc(firebaseUser.uid))
+    void safe(ensureWalletDoc(firebaseUser.uid, profile))
     return sanitize(profile)
   } catch {
     // Offline: trust the cached session rather than signing the user out.
@@ -731,6 +732,9 @@ export async function updateProfile(userId, updates) {
   const clean = sanitize(users[index])
   setSession(clean)
   await safe(cloudSet(CLOUD.users, userId, clean))
+  // Keep the wallet's display identity in step with the profile so staff
+  // booking screens always show the current name.
+  void safe(writeWalletIdentity(userId, clean))
   return clean
 }
 

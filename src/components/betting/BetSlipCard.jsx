@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Trash2, ExternalLink, Info } from 'lucide-react'
 import Button from '../common/Button'
 import BetSlipItem from './BetSlipItem'
+import BookingCodePanel from './BookingCodePanel'
 import EmptyState from '../common/EmptyState'
 import { useBetSlip } from '../../context/BetSlipContext'
 import { useWallet } from '../../context/WalletContext'
@@ -11,7 +12,7 @@ import { formatCurrency, formatOdds, currencySymbol } from '../../utils/format'
 
 export default function BetSlipCard({ className }) {
   const navigate = useNavigate()
-  const { selections, stake, setStake, totalOdds, potentialWin, removeSelection, clearSlip } =
+  const { selections, stake, setStake, totalOdds, potentialWin, removeSelection, clearSlip, loadSelections } =
     useBetSlip()
   const { currency, refresh } = useWallet()
   const [error, setError] = useState('')
@@ -138,6 +139,10 @@ export default function BetSlipCard({ className }) {
           </p>
         </div>
       )}
+
+      <div className="border-t border-white/5 p-3">
+        <BookingCodePanel selections={selections} onLoad={loadSelections} />
+      </div>
     </div>
   )
 }
