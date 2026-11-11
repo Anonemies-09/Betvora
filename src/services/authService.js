@@ -252,7 +252,8 @@ function buildBasicProfile(firebaseUser) {
 async function resolveProfile(firebaseUser) {
   const uid = firebaseUser.uid
   const email = String(firebaseUser.email || '').toLowerCase()
-  let profile = await cloudGet(CLOUD.users, uid)
+  const cloudProfile = await cloudGet(CLOUD.users, uid)
+  let profile = cloudProfile
 
   if (!profile) {
     const local = readUsers().find(
@@ -268,13 +269,24 @@ async function resolveProfile(firebaseUser) {
     } else {
       profile = buildBasicProfile(firebaseUser)
     }
-    await safe(cloudSet(CLOUD.users, uid, stripPassword(profile)))
+    // Only create the shared profile when Firestore confirmed it is missing.
+    // On a timeout/offline we keep this session local and retry next login.
+    if (cloudProfile === null) {
+      await safe(cloudSet(CLOUD.users, uid, stripPassword(profile)))
+    }
   }
 
   profile.id = uid
   if (email) profile.email = email
   if (!profile.fullName) {
     profile.fullName = `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || email
+  }
+  if (!profile.currency) profile.currency = 'GHS'
+  if (!profile.country) profile.country = 'GH'
+  // Repair profiles stored before the shared schema was complete (some staff
+  // records had only id/email/role), so directory screens always get a name.
+  if (cloudProfile && (!cloudProfile.fullName || !cloudProfile.currency)) {
+    await safe(cloudSet(CLOUD.users, uid, stripPassword(profile)))
   }
   // Keep the flags the security rules compare present on every profile.
   if (typeof profile.isSuspended !== 'boolean') profile.isSuspended = false
@@ -578,6 +590,9 @@ export async function restoreSession() {
     const firebaseUser = await waitForAuthUser(auth, Boolean(cached))
 
     if (!firebaseUser) {
+      // If Firebase could not verify the user (offline or slow connection),
+      // keep the cached session instead of signing a real user out mid-session.
+      if (cached) return cached
       localStorage.removeItem(SESSION_KEY)
       return null
     }

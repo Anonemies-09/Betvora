@@ -135,7 +135,7 @@ export default function AdminWalletPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-white">{formatCurrency(r.amount, currency)}</p>
                     <p className="text-[11px] text-white/40">
-                      User {readUsers().find((u) => u.id === r.userId)?.fullName || r.userId} �?� From {r.senderPhone} �?� Ref {r.txRef}
+                      User {readUsers().find((u) => u.id === r.userId)?.fullName || r.userId} • From {r.senderPhone} • Ref {r.txRef}
                     </p>
                   </div>
                   <div className="flex gap-1.5">
@@ -165,7 +165,7 @@ export default function AdminWalletPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-white">{formatCurrency(r.amount, currency)}</p>
                     <p className="text-[11px] text-white/40">
-                      User {readUsers().find((u) => u.id === r.userId)?.fullName || r.userId} �?� {r.method} �?� {r.account}
+                      User {readUsers().find((u) => u.id === r.userId)?.fullName || r.userId} • {r.method} • {r.account}
                     </p>
                   </div>
                   <div className="flex gap-1.5">

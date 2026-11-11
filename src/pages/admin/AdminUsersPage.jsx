@@ -140,7 +140,7 @@ export default function AdminUsersPage() {
             {users.map((user) => (
               <div key={user.id} className="flex flex-wrap items-center gap-3 px-4 py-4 sm:flex-nowrap">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-navy-800 text-sm font-black text-gold">
-                  {user.fullName
+                  {(user.fullName || user.email || 'BV')
                     .split(' ')
                     .map((p) => p[0])
                     .slice(0, 2)
@@ -148,12 +148,14 @@ export default function AdminUsersPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-bold text-white">{user.fullName}</p>
+                    <p className="truncate text-sm font-bold text-white">{user.fullName || user.email}</p>
                     <RoleBadge role={user.role} />
                     {user.isSuspended && <Badge tone="red" dot>Suspended</Badge>}
                   </div>
                   <p className="mt-0.5 truncate text-xs text-white/40">
-                    {user.email} • {user.phone} • joined {formatDate(user.createdAt)}
+                    {[user.email, user.phone, `joined ${formatDate(user.createdAt)}`]
+                      .filter(Boolean)
+                      .join(' • ')}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">

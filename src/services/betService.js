@@ -221,6 +221,8 @@ export async function settleBetsForMatch(matchId) {
   )
 
   for (const bet of affected) {
+    // Orphaned records (no owner) cannot be paid out or notified safely.
+    if (!bet.userId) continue
     const voidedSel = bet.selections.filter((s) => voidedIds.has(s.matchId))
     if (voidedSel.length > 0) {
       bet.status = 'cancelled'

@@ -35,8 +35,8 @@ export const LOCAL = {
   banners: 'betvora_banners',
 }
 
-const WRITE_TIMEOUT = 8000
-const READ_TIMEOUT = 8000
+const WRITE_TIMEOUT = 20000
+const READ_TIMEOUT = 20000
 const TIMEOUT = '__betvora_timeout__'
 
 export function cloudEnabled() {
@@ -128,16 +128,23 @@ export async function currentUid() {
   }
 }
 
+/**
+ * Read one document. Returns the document, `null` when Firestore confirms it
+ * does not exist, or `undefined` when the read failed or timed out. Callers
+ * must not treat `undefined` as "missing": creating a default document on a
+ * timeout is how a slow network could overwrite a real wallet.
+ */
 export async function cloudGet(collection, id) {
   if (!cloudEnabled() || id == null || id === '') return null
   try {
     const { mod, db } = await api()
     const result = await withTimeout(mod.getDoc(mod.doc(db, collection, String(id))), READ_TIMEOUT)
-    if (result === TIMEOUT || !result.exists()) return null
+    if (result === TIMEOUT) return undefined
+    if (!result.exists()) return null
     return { id: result.id, ...result.data() }
   } catch (err) {
     console.warn(`[cloud] read ${collection}/${id} failed`, err?.code || err?.message || err)
-    return null
+    return undefined
   }
 }
 
@@ -280,24 +287,32 @@ export async function pullStaffData() {
   ])
 
   if (users) {
-    // Never drop the local plaintext password cache when merging profiles.
-    writeLocal(LOCAL.users, mergeById(readLocal(LOCAL.users, []), users, ['password']))
+    // The cloud directory is authoritative: drop profiles that were deleted
+    // elsewhere, but keep any locally cached plaintext password for accounts
+    // that still exist.
+    const local = readLocal(LOCAL.users, [])
+    const passwords = new Map(
+      local
+        .filter((u) => u.password)
+        .map((u) => [String(u.id), u.password]),
+    )
+    const merged = users.map((u) =>
+      passwords.has(String(u.id)) ? { ...u, password: passwords.get(String(u.id)) } : u,
+    )
+    writeLocal(LOCAL.users, sortNewest(merged))
   }
   if (wallets) {
     const local = readLocal(LOCAL.wallets, {})
     for (const wallet of wallets) local[wallet.id] = { ...local[wallet.id], ...wallet }
     writeLocal(LOCAL.wallets, local)
   }
-  if (bets) writeLocal(LOCAL.bets, mergeById(readLocal(LOCAL.bets, []), bets))
-  if (deposits) {
-    writeLocal(LOCAL.depositRequests, mergeById(readLocal(LOCAL.depositRequests, []), deposits))
-  }
-  if (withdrawals) {
-    writeLocal(
-      LOCAL.withdrawalRequests,
-      mergeById(readLocal(LOCAL.withdrawalRequests, []), withdrawals),
-    )
-  }
+  // Bets and payment requests are always written to the cloud before they are
+  // cached locally, so the remote set is authoritative for staff views. Replace
+  // (rather than merge) so staff devices drop bets or requests that no longer
+  // exist remotely instead of resurrecting them on the next settlement.
+  if (bets) writeLocal(LOCAL.bets, sortNewest(bets))
+  if (deposits) writeLocal(LOCAL.depositRequests, sortNewest(deposits))
+  if (withdrawals) writeLocal(LOCAL.withdrawalRequests, sortNewest(withdrawals))
   return true
 }
 
@@ -312,6 +327,9 @@ export async function hydrateWallet(uid) {
 export async function ensureWalletDoc(uid) {
   if (!cloudEnabled() || !uid) return null
   const existing = await cloudGet(CLOUD.wallets, uid)
+  // Unknown (offline / timeout): keep the cached wallet and never write a
+  // default balance, or a dropped connection could wipe real money.
+  if (existing === undefined) return null
   if (existing) {
     mergeWallet(uid, existing)
     return existing
