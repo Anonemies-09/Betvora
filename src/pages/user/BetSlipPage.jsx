@@ -15,6 +15,24 @@ import { formatCurrency, formatOdds, currencySymbol } from '../../utils/format'
 
 const BET_MODES = ['Singles', 'Multiple', 'System']
 
+function combinations(items, size) {
+  const result = []
+  const current = []
+  function visit(start) {
+    if (current.length === size) {
+      result.push([...current])
+      return
+    }
+    for (let i = start; i < items.length; i += 1) {
+      current.push(items[i])
+      visit(i + 1)
+      current.pop()
+    }
+  }
+  visit(0)
+  return result
+}
+
 export default function BetSlipPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -62,7 +80,20 @@ export default function BetSlipPage() {
     setError('')
     setLoading(true)
     try {
-      if (isMultiple) {
+      if (system) {
+        const combos = []
+        for (let size = 2; size <= selections.length; size += 1) {
+          combos.push(...combinations(selections, size))
+        }
+        if (combos.length === 0) {
+          throw new Error('Add at least two selections for a system bet.')
+        }
+        const perStake = Number(stake || 0) / combos.length
+        if (!perStake || perStake <= 0) throw new Error('Enter a valid stake.')
+        for (const combo of combos) {
+          await placeBet({ selections: combo, stake: perStake })
+        }
+      } else if (isMultiple) {
         await placeBet({ selections, stake })
       } else {
         for (const s of selections) {
@@ -152,18 +183,20 @@ export default function BetSlipPage() {
           <span className="text-xs text-white/40">{selections.length} selection{selections.length > 1 ? 's' : ''}</span>
         </div>
 
-        {system ? (
+        {system && (
           <div className="space-y-3">
             <div className="flex items-start gap-3 rounded-xl border border-gold/25 bg-gold/5 p-3.5">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
               <p className="text-sm leading-relaxed text-white/60">
-                System bets (permutations of your selections) are coming soon. Your selections
-                stay on the slip — place them as singles or a multiple for now.
+                System bet: all combinations of your selections will be placed and the stake
+                split evenly across them ({combinations(selections, 2).length +
+                  (selections.length >= 3 ? combinations(selections, 3).length : 0)}+
+                combinations).
               </p>
             </div>
           </div>
-        ) : (
-          <>
+        )}
+        <>
             <div className="flex items-center justify-between gap-3">
               <label className="text-sm font-semibold text-white/70">Stake</label>
               <div className="flex w-40 items-center gap-2 rounded-xl border border-white/10 bg-navy-800 px-3 py-2.5 focus-within:border-gold">
@@ -215,7 +248,6 @@ export default function BetSlipPage() {
               </div>
             </div>
           </>
-        )}
 
         {error && (
           <p className="mt-4 rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
@@ -228,7 +260,7 @@ export default function BetSlipPage() {
           fullWidth
           className="mt-5"
           loading={loading}
-          disabled={system || !stake || stake <= 0}
+          disabled={!stake || stake <= 0}
           onClick={handlePlaceBet}
         >
           {system ? 'System bets — coming soon' : isMultiple ? 'Place Bet' : `Place ${selections.length} Singles`}
