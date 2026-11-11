@@ -6,9 +6,34 @@ import EmptyState from '../../components/common/EmptyState'
 import AdSlot from '../../components/common/AdSlot'
 import Input from '../../components/common/Input'
 import Button from '../../components/common/Button'
-import { getMyBets } from '../../services/betService'
+import { getMyBets, cashOutBet } from '../../services/betService'
+import { getMatches, readMatches } from '../../services/matchService'
+import { MARKET_GROUPS } from '../../data/catalogue'
 import { formatCurrency, formatOdds, formatDate, getBetNumber } from '../../utils/format'
 import { Download, Search } from 'lucide-react'
+
+function marketIdForShort(short) {
+  return MARKET_GROUPS.find((group) => group.short === short || group.id === short)?.id || short
+}
+
+function cashOutValue(bet, matches) {
+  if (!bet || bet.status !== 'pending') return null
+  const byId = Object.fromEntries((matches || []).map((match) => [match.id, match]))
+  const prices = []
+  for (const selection of bet.selections) {
+    const match = byId[selection.matchId]
+    if (!match || match.status === 'ended' || match.status === 'void' || match.isLive) return null
+    const marketId = marketIdForShort(selection.market)
+    const price = Number(match.markets?.[marketId]?.[selection.outcomeKey])
+    if (!Number.isFinite(price) || price <= 0) return null
+    prices.push(price)
+  }
+  const currentTotal = prices.reduce((acc, price) => acc * price, 1)
+  const originalTotal = Number(bet.totalOdds) || 1
+  const value = Number(bet.stake) * (currentTotal / originalTotal) * 0.9
+  const capped = Math.min(Number(bet.potentialWin), Math.max(0, Number(value.toFixed(2))))
+  return capped >= 0.01 ? capped : null
+}
 
 const STATUS_STYLES = {
   pending: { tone: 'navy', dot: true, label: 'Pending' },
@@ -17,8 +42,9 @@ const STATUS_STYLES = {
   cancelled: { tone: 'navy', dot: true, label: 'Cancelled' },
 }
 
-function BetCard({ bet }) {
+function BetCard({ bet, matches, onCashOut, cashing }) {
   const status = STATUS_STYLES[bet.status]
+  const value = cashOutValue(bet, matches)
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between">
@@ -62,26 +88,66 @@ function BetCard({ bet }) {
           <p className="font-bold text-white">{formatCurrency(bet.potentialWin)}</p>
         </div>
       </div>
+
+      {bet.status === 'pending' && value !== null && (
+        <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/5 pt-3">
+          <div>
+            <p className="text-xs text-white/40">Cash out value</p>
+            <p className="font-black text-gold">{formatCurrency(value)}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            loading={cashing === bet.id}
+            onClick={() => onCashOut(bet)}
+          >
+            Cash Out
+          </Button>
+        </div>
+      )}
+      {bet.status === 'cashed_out' && bet.cashOutAmount != null && (
+        <p className="mt-3 border-t border-white/5 pt-3 text-xs text-white/50">
+          Cashed out for <b className="text-gold">{formatCurrency(bet.cashOutAmount)}</b>
+        </p>
+      )}
     </Card>
   )
 }
 
 export default function MyBetsPage() {
   const [bets, setBets] = useState([])
+  const [matches, setMatches] = useState([])
   const [tab, setTab] = useState('Open')
   const [query, setQuery] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [cashing, setCashing] = useState(null)
 
   useEffect(() => {
     let active = true
     getMyBets().then((data) => {
       if (active) setBets(data)
     })
+    getMatches().then((data) => {
+      if (active) setMatches(data)
+    })
     return () => {
       active = false
     }
   }, [])
+
+  const handleCashOut = async (bet) => {
+    if (!window.confirm(`Cash out bet ${getBetNumber(bet.id)} for ${formatCurrency(cashOutValue(bet, matches))}?`)) return
+    setCashing(bet.id)
+    try {
+      await cashOutBet(bet.id)
+      setBets(await getMyBets())
+    } catch (err) {
+      window.alert(err.message)
+    } finally {
+      setCashing(null)
+    }
+  }
 
   const filtered = useMemo(() => {
     const base =
@@ -200,7 +266,13 @@ export default function MyBetsPage() {
           ) : (
             <div className="space-y-3">
               {filtered.map((bet) => (
-                <BetCard key={bet.id} bet={bet} />
+                <BetCard
+                  key={bet.id}
+                  bet={bet}
+                  matches={matches}
+                  onCashOut={handleCashOut}
+                  cashing={cashing}
+                />
               ))}
               <AdSlot slot="mybets_bottom" className="mx-auto w-full max-w-2xl" />
             </div>

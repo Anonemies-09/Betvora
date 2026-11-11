@@ -150,6 +150,60 @@ async function updateBetCloud(bet) {
   return saved
 }
 
+export async function cashOutBet(betId) {
+  await delay()
+  const bets = readBets()
+  const bet = bets.find((b) => String(b.id) === String(betId))
+  if (!bet) throw new Error('Bet not found.')
+  if (bet.status !== 'pending') throw new Error('Only open bets can be cashed out.')
+  if (!bet.userId) throw new Error('This bet cannot be cashed out.')
+
+  const matches = readMatches()
+  const byId = Object.fromEntries(matches.map((m) => [m.id, m]))
+  const currentOddsList = []
+  for (const selection of bet.selections) {
+    const match = byId[selection.matchId]
+    if (!match || match.status === 'ended' || match.status === 'void' || match.isLive) {
+      throw new Error('Cash out is no longer available for this bet.')
+    }
+    const marketId = selection.market === '1X2' ? 'winner' : selection.market
+    const price = Number(match.markets?.[marketId]?.[selection.outcomeKey])
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error('Cash out is no longer available for this bet.')
+    }
+    currentOddsList.push(price)
+  }
+  const currentTotal = currentOddsList.reduce((acc, price) => acc * price, 1)
+  const originalTotal = Number(bet.totalOdds) || 1
+  const rawValue = Number(bet.stake) * (currentTotal / originalTotal) * 0.9
+  const value = Math.min(Number(bet.potentialWin), Math.max(0, Number(rawValue.toFixed(2))))
+  if (value < 0.01) throw new Error('Cash out value is too low to process.')
+
+  bet.status = 'cashed_out'
+  bet.cashOutAmount = value
+  bet.cashOutAt = new Date().toISOString()
+  bet.settledAt = bet.cashOutAt
+  persistLocal(bets)
+  const saved = await updateBetCloud(bet)
+  if (cloudEnabled() && !saved) {
+    bet.status = 'pending'
+    delete bet.cashOutAmount
+    delete bet.cashOutAt
+    delete bet.settledAt
+    persistLocal(bets)
+    throw new Error('Could not reach the server. Cash out was not processed.')
+  }
+
+  await creditGameWinnings(value, `Bet #BV${bet.id} cashed out`, bet.userId)
+  await createNotification({
+    type: 'wallet',
+    title: 'Cash out',
+    text: `Bet #BV${bet.id} was cashed out for ${value}.`,
+    userId: bet.userId,
+  })
+  return { bet, value }
+}
+
 export async function cancelBet(betId, reason = 'Voided by admin') {
   await delay()
   const bets = readBets()
